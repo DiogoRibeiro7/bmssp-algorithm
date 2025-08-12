@@ -198,6 +198,22 @@ void dq_pull(DQueue *dq, double *Bi, IntArray *Si) {
     free(tmp);
 }
 
+// -------- Result containers for API consistency --------
+typedef struct {
+    IntArray P;
+    IntArray W;
+} PivotResult;
+
+typedef struct {
+    double B;
+    IntArray U;
+} BaseCaseResult;
+
+typedef struct {
+    double B;
+    IntArray U;
+} BMSSPResult;
+
 // -------- Algorithm 1: FindPivots --------
 int subtree_size_rec(int u, IntArray *children, int *seen) {
     if (seen[u]) return 0;
@@ -210,9 +226,10 @@ int subtree_size_rec(int u, IntArray *children, int *seen) {
     return size;
 }
 
-void find_pivots(Graph *graph, double B, IntArray *S, double *d_hat, IntArray *complete, int k, IntArray *P_out, IntArray *W_out) {
+PivotResult find_pivots(Graph *graph, double B, IntArray *S, double *d_hat, IntArray *complete, int k, int verbose) {
     IntArray W; ia_init(&W); ia_copy(&W, S);
     IntArray W_prev; ia_init(&W_prev); ia_copy(&W_prev, S);
+    if (verbose) printf("find_pivots: start |S|=%d, B=%g\n", S->count, B);
     for (int iter = 1; iter <= k; iter++) {
         IntArray W_i; ia_init(&W_i);
         for (int idx = 0; idx < W_prev.count; idx++) {
@@ -229,14 +246,24 @@ void find_pivots(Graph *graph, double B, IntArray *S, double *d_hat, IntArray *c
             }
         }
         for (int i = 0; i < W_i.count; i++) ia_add_unique(&W, W_i.data[i]);
-        if (W.count > k * S->count) { ia_copy(P_out, S); ia_copy(W_out, &W); ia_free(&W_i); ia_free(&W_prev); ia_free(&W); return; }
+        if (W.count > k * S->count) {
+            if (verbose) printf("find_pivots: early termination |W| > k*|S|\n");
+            PivotResult res = {0};
+            ia_init(&res.P); ia_copy(&res.P, S);
+            res.W = W;
+            ia_free(&W_i); ia_free(&W_prev);
+            return res;
+        }
         ia_free(&W_prev);
         ia_init(&W_prev); ia_copy(&W_prev, &W_i);
         ia_free(&W_i);
     }
-    // build F_children
     IntArray *children = (IntArray*)malloc(graph->n * sizeof(IntArray));
     int *indeg = (int*)calloc(graph->n, sizeof(int));
+    if (!children || !indeg) {
+        fprintf(stderr, "find_pivots: memory allocation failed\n");
+        free(children); free(indeg); ia_free(&W_prev); ia_free(&W); exit(1);
+    }
     for (int i = 0; i < graph->n; i++) ia_init(&children[i]);
     for (int idx = 0; idx < W.count; idx++) {
         int u = W.data[idx]; double du = d_hat[u];
@@ -250,24 +277,38 @@ void find_pivots(Graph *graph, double B, IntArray *S, double *d_hat, IntArray *c
         }
     }
 
-    ia_init(P_out);
+    PivotResult res; ia_init(&res.P); res.W = W;
     int *seen = (int*)calloc(graph->n, sizeof(int));
+    if (!seen) {
+        fprintf(stderr, "find_pivots: memory allocation failed\n");
+        for (int i = 0; i < graph->n; i++) ia_free(&children[i]);
+        free(children); free(indeg); ia_free(&W_prev); ia_free(&res.P); ia_free(&W); exit(1);
+    }
     for (int idx = 0; idx < S->count; idx++) {
         int u = S->data[idx];
-        if (indeg[u] == 0 && subtree_size_rec(u, children, seen) >= k) ia_add_unique(P_out, u);
+        if (indeg[u] == 0 && subtree_size_rec(u, children, seen) >= k) ia_add_unique(&res.P, u);
+    }
+    if (verbose) {
+        printf("find_pivots: pivots={");
+        for (int i = 0; i < res.P.count; i++) {
+            if (i) printf(", ");
+            printf("%d", res.P.data[i]);
+        }
+        printf("}\n");
     }
     free(seen);
-    ia_copy(W_out, &W);
     for (int i = 0; i < graph->n; i++) ia_free(&children[i]);
-    free(children); free(indeg); ia_free(&W_prev); ia_free(&W);
+    free(children); free(indeg); ia_free(&W_prev);
+    return res;
 }
 
 // -------- Algorithm 2: BaseCase --------
-void base_case(Graph *graph, double B, IntArray *S, double *d_hat, IntArray *complete, int k, double *B_out, IntArray *U_out) {
+BaseCaseResult base_case(Graph *graph, double B, IntArray *S, double *d_hat, IntArray *complete, int k, int verbose) {
     int x = S->data[0];
     IntArray U0; ia_init(&U0); ia_add_unique(&U0, x);
     MinHeap H; heap_init(&H); heap_push(&H, (NodeDist){d_hat[x], x});
     int *visited = (int*)calloc(graph->n, sizeof(int));
+    if (verbose) printf("base_case: start from %d with B=%g\n", x, B);
     while (!heap_empty(&H) && U0.count < k + 1) {
         NodeDist nd = heap_pop(&H); int u = nd.node; double du = nd.dist;
         if (visited[u]) continue; visited[u] = 1; ia_add_unique(&U0, u); ia_add_unique(complete, u);
@@ -279,28 +320,54 @@ void base_case(Graph *graph, double B, IntArray *S, double *d_hat, IntArray *com
             }
         }
     }
-    if (U0.count <= k) { *B_out = B; ia_copy(U_out, &U0); }
-    else {
-        double Bp = -INFINITY; for (int i = 0; i < U0.count; i++) if (d_hat[U0.data[i]] > Bp) Bp = d_hat[U0.data[i]];
-        *B_out = Bp; ia_init(U_out); for (int i = 0; i < U0.count; i++) if (d_hat[U0.data[i]] < Bp) ia_add_unique(U_out, U0.data[i]);
+    BaseCaseResult res;
+    if (U0.count <= k) {
+        if (verbose) printf("base_case: early termination |U0| <= k\n");
+        res.B = B;
+        res.U = U0;
+    } else {
+        double Bp = -INFINITY;
+        for (int i = 0; i < U0.count; i++) if (d_hat[U0.data[i]] > Bp) Bp = d_hat[U0.data[i]];
+        res.B = Bp;
+        ia_init(&res.U);
+        for (int i = 0; i < U0.count; i++) if (d_hat[U0.data[i]] < Bp) ia_add_unique(&res.U, U0.data[i]);
+        ia_free(&U0);
+        if (verbose) printf("base_case: computed B'=%g\n", res.B);
     }
-    free(visited); ia_free(&U0); heap_free(&H);
+    free(visited); heap_free(&H);
+    return res;
 }
 
 // -------- Algorithm 3: BMSSP --------
-void bmssp(Graph *graph, int l, double B, IntArray *S, double *d_hat, IntArray *complete, int k, int t, double *B_out, IntArray *U_out) {
-    ia_init(U_out);
-    if (l == 0) { base_case(graph, B, S, d_hat, complete, k, B_out, U_out); return; }
-    IntArray P, W; ia_init(&P); ia_init(&W);
-    find_pivots(graph, B, S, d_hat, complete, k, &P, &W);
+BMSSPResult bmssp(Graph *graph, int l, double B, IntArray *S, double *d_hat, IntArray *complete, int k, int t, int verbose) {
+    if (verbose) printf("bmssp: level=%d, B=%g, |S|=%d\n", l, B, S->count);
+    if (l == 0) {
+        BaseCaseResult bc = base_case(graph, B, S, d_hat, complete, k, verbose);
+        if (verbose) printf("bmssp: base case returns B=%g, |U|=%d\n", bc.B, bc.U.count);
+        BMSSPResult res = {bc.B, bc.U};
+        return res;
+    }
+    PivotResult piv = find_pivots(graph, B, S, d_hat, complete, k, verbose);
+    IntArray P = piv.P; IntArray W = piv.W;
+    if (verbose) {
+        printf("bmssp: pivots={");
+        for (int i = 0; i < P.count; i++) {
+            if (i) printf(", ");
+            printf("%d", P.data[i]);
+        }
+        printf("}\n");
+    }
     int M = 1 << ((l - 1) * t);
     DQueue D; dq_init(&D, M, B);
     for (int i = 0; i < P.count; i++) dq_insert(&D, P.data[i], d_hat[P.data[i]]);
     IntArray U; ia_init(&U);
-    double B0_prime = B; for (int i = 0; i < P.count; i++) if (d_hat[P.data[i]] < B0_prime) B0_prime = d_hat[P.data[i]];
+    double B0_prime = B;
+    for (int i = 0; i < P.count; i++) if (d_hat[P.data[i]] < B0_prime) B0_prime = d_hat[P.data[i]];
+    if (verbose) printf("bmssp: B0'=%g\n", B0_prime);
     while (U.count < k * (1 << (l * t)) && dq_non_empty(&D)) {
         double Bi; IntArray Si; dq_pull(&D, &Bi, &Si);
-        double B_prime_i; IntArray U_i; ia_init(&U_i); bmssp(graph, l - 1, Bi, &Si, d_hat, complete, k, t, &B_prime_i, &U_i);
+        BMSSPResult rec = bmssp(graph, l - 1, Bi, &Si, d_hat, complete, k, t, verbose);
+        double B_prime_i = rec.B; IntArray U_i = rec.U;
         for (int j = 0; j < U_i.count; j++) ia_add_unique(&U, U_i.data[j]);
         IntArray K; ia_init(&K);
         for (int j = 0; j < U_i.count; j++) {
@@ -327,17 +394,25 @@ void bmssp(Graph *graph, int l, double B, IntArray *S, double *d_hat, IntArray *
         }
         ia_free(&K); ia_free(&Si); ia_free(&U_i);
     }
+    if (verbose) {
+        const char *reason = "condition";
+        if (U.count >= k * (1 << (l * t))) reason = "U size reached";
+        else if (!dq_non_empty(&D)) reason = "queue empty";
+        printf("bmssp: terminating loop due to %s\n", reason);
+    }
     double B_prime = B0_prime < B ? B0_prime : B;
     for (int i = 0; i < W.count; i++) {
         int x = W.data[i]; if (d_hat[x] < B_prime) ia_add_unique(&U, x);
     }
     for (int i = 0; i < U.count; i++) ia_add_unique(complete, U.data[i]);
-    *B_out = B_prime; ia_copy(U_out, &U);
-    ia_free(&U); dq_free(&D); ia_free(&P); ia_free(&W);
+    if (verbose) printf("bmssp: returning B=%g, |U|=%d\n", B_prime, U.count);
+    BMSSPResult res = {B_prime, U};
+    dq_free(&D); ia_free(&P); ia_free(&W);
+    return res;
 }
 
 // -------- Main Driver --------
-void run_sssp(Graph *graph, int source, double *d_hat) {
+void run_sssp(Graph *graph, int source, double *d_hat, int verbose) {
     int n = graph->n;
     double log2n = log2((double)n);
     int k = (int)fmax(1.0, pow(log2n, 1.0/3.0));
@@ -347,8 +422,9 @@ void run_sssp(Graph *graph, int source, double *d_hat) {
     d_hat[source] = 0.0;
     IntArray complete; ia_init(&complete); ia_add_unique(&complete, source);
     IntArray S; ia_init(&S); ia_add_unique(&S, source);
-    double B_out; IntArray U_out; ia_init(&U_out); bmssp(graph, l, INF, &S, d_hat, &complete, k, t, &B_out, &U_out);
-    ia_free(&complete); ia_free(&S); ia_free(&U_out);
+    BMSSPResult res = bmssp(graph, l, INF, &S, d_hat, &complete, k, t, verbose);
+    ia_free(&res.U);
+    ia_free(&complete); ia_free(&S);
 }
 
 int main() {
@@ -360,7 +436,7 @@ int main() {
     add_edge(g, 1, 3, 5);
     add_edge(g, 2, 3, 1);
     double dist[4];
-    run_sssp(g, 0, dist);
+    run_sssp(g, 0, dist, 0);
     for (int i = 0; i < 4; i++) {
         if (dist[i] == INF) printf("inf\n");
         else printf("%g\n", dist[i]);

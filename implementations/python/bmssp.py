@@ -3,6 +3,7 @@ from typing import Dict, List, Set, Tuple, Any
 import math
 import heapq
 from collections import defaultdict
+from dataclasses import dataclass
 
 Node = Any
 Weight = float
@@ -84,6 +85,7 @@ class DQueue:
 
     def batch_prepend(self, items: List[Tuple[Node, float]]) -> None:
         self.prepend.extend((dist, node) for node, dist in items if dist < self.B)
+        self.prepend.sort()
 
     def pull(self) -> Tuple[float, Set[Node]]:
         if self.prepend:
@@ -106,6 +108,32 @@ class DQueue:
         return bool(self.data or self.prepend)
 
 
+# ------------------- Result containers for API consistency -------------------
+
+
+@dataclass
+class PivotResult:
+    """Result of :func:`find_pivots` with the pivot set ``P`` and explored nodes ``W``."""
+
+    P: Set[Node]
+    W: Set[Node]
+
+
+@dataclass
+class BaseCaseResult:
+    """Outcome of :func:`base_case` containing updated bound ``B`` and visited nodes ``U``."""
+
+    B: float
+    U: Set[Node]
+
+@dataclass
+class BMSSPResult:
+    """Return value for :func:`bmssp` capturing the recursion bound ``B`` and finalized nodes ``U``."""
+
+    B: float
+    U: Set[Node]
+
+
 # ------------------- Algorithm 1: FindPivots -------------------
 def find_pivots(
     graph: Graph,
@@ -114,7 +142,8 @@ def find_pivots(
     d_hat: Dict[Node, float],
     complete: Set[Node],
     k: int,
-) -> Tuple[Set[Node], Set[Node]]:
+    verbose: bool = False,
+) -> PivotResult:
     """
     Finds pivot nodes in a graph based on distance constraints and subtree sizes.
 
@@ -129,12 +158,14 @@ def find_pivots(
         k (int): Maximum number of expansion steps and minimum subtree size for pivots.
 
     Returns:
-        Tuple[Set[Node], Set[Node]]:
+        PivotResult:
             - P: Set of pivot nodes in `S` whose subtrees have size at least `k` and no incoming edges in the forest.
             - W: Set of all nodes reached during the expansion.
     """
     W: Set[Node] = set(S)
     W_prev: Set[Node] = set(S)
+    if verbose:
+        print(f"find_pivots: start |S|={len(S)}, B={B}")
 
     for _ in range(1, k + 1):
         W_i: Set[Node] = set()
@@ -149,7 +180,11 @@ def find_pivots(
                         W_i.add(v)
         W |= W_i
         if len(W) > k * len(S):
-            return set(S), W
+            if verbose:
+                print(
+                    "find_pivots: early termination |W| > k*|S|",
+                )
+            return PivotResult(set(S), W)
         W_prev = W_i
 
     F_children: Dict[Node, List[Node]] = defaultdict(list)
@@ -168,11 +203,21 @@ def find_pivots(
         return size
 
     P = {u for u in S if indeg.get(u, 0) == 0 and subtree_size(u) >= k}
-    return P, W
+    if verbose:
+        print(f"find_pivots: pivots={P}")
+    return PivotResult(P, W)
 
 
 # ------------------- Algorithm 2: BaseCase -------------------
-def base_case(graph: Graph, B: float, S: Set[Node], d_hat: Dict[Node, float], complete: Set[Node], k: int) -> Tuple[float, Set[Node]]:
+def base_case(
+    graph: Graph,
+    B: float,
+    S: Set[Node],
+    d_hat: Dict[Node, float],
+    complete: Set[Node],
+    k: int,
+    verbose: bool = False,
+) -> BaseCaseResult:
     """
     Finds a base case subset of nodes in the graph with respect to distance constraints.
 
@@ -192,12 +237,14 @@ def base_case(graph: Graph, B: float, S: Set[Node], d_hat: Dict[Node, float], co
         k (int): The minimum number of nodes to include in the subset (returns when subset size exceeds k).
 
     Returns:
-        Tuple[float, Set[Node]]: A tuple containing the updated bound and the subset of nodes found.
+        BaseCaseResult: Updated bound and the subset of nodes found.
     """
     x = next(iter(S))
     U0: Set[Node] = {x}
     H: List[Tuple[float, Node]] = [(d_hat[x], x)]
     visited: Set[Node] = set()
+    if verbose:
+        print(f"base_case: start from {x} with B={B}")
 
     while H and len(U0) < k + 1:
         du, u = heapq.heappop(H)
@@ -212,14 +259,28 @@ def base_case(graph: Graph, B: float, S: Set[Node], d_hat: Dict[Node, float], co
                 heapq.heappush(H, (d_hat[v], v))
 
     if len(U0) <= k:
-        return B, U0
+        if verbose:
+            print("base_case: early termination |U0| <= k")
+        return BaseCaseResult(B, U0)
     else:
         B_prime = max(d_hat[v] for v in U0)
-        return B_prime, {v for v in U0 if d_hat[v] < B_prime}
+        if verbose:
+            print(f"base_case: computed B'={B_prime}")
+        return BaseCaseResult(B_prime, {v for v in U0 if d_hat[v] < B_prime})
 
 
 # ------------------- Algorithm 3: BMSSP -------------------
-def bmssp(graph: Graph, l: int, B: float, S: Set[Node], d_hat: Dict[Node, float], complete: Set[Node], k: int, t: int,) -> Tuple[float, Set[Node]]:
+def bmssp(
+    graph: Graph,
+    l: int,
+    B: float,
+    S: Set[Node],
+    d_hat: Dict[Node, float],
+    complete: Set[Node],
+    k: int,
+    t: int,
+    verbose: bool = False,
+) -> BMSSPResult:
     """
     Performs a recursive bounded multi-source shortest paths (BMSSP) computation on a given graph.
 
@@ -234,14 +295,20 @@ def bmssp(graph: Graph, l: int, B: float, S: Set[Node], d_hat: Dict[Node, float]
         t (int): The branching factor exponent for recursion.
 
     Returns:
-        Tuple[float, Set[Node]]: A tuple containing:
-            - B_prime (float): The updated distance bound after processing.
-            - U (Set[Node]): The set of nodes whose shortest paths have been updated in this recursion.
+        BMSSPResult: Updated bound and set of nodes whose shortest paths were finalized in this recursion.
     """
+    if verbose:
+        print(f"bmssp: level={l}, B={B}, |S|={len(S)}")
     if l == 0:
-        return base_case(graph, B, S, d_hat, complete, k)
+        bc = base_case(graph, B, S, d_hat, complete, k, verbose)
+        if verbose:
+            print(f"bmssp: base case returns B={bc.B}, |U|={len(bc.U)}")
+        return BMSSPResult(bc.B, bc.U)
 
-    P, W = find_pivots(graph, B, S, d_hat, complete, k)
+    piv = find_pivots(graph, B, S, d_hat, complete, k, verbose)
+    P, W = piv.P, piv.W
+    if verbose:
+        print(f"bmssp: pivots={P}")
     M = 2 ** ((l - 1) * t)
     D = DQueue(M, B)
     for x in P:
@@ -249,10 +316,13 @@ def bmssp(graph: Graph, l: int, B: float, S: Set[Node], d_hat: Dict[Node, float]
 
     U: Set[Node] = set()
     B0_prime = min(d_hat[x] for x in P) if P else B
+    if verbose:
+        print(f"bmssp: B0'={B0_prime}")
 
     while len(U) < k * (2 ** (l * t)) and D.non_empty():
         Bi, Si = D.pull()
-        B_prime_i, U_i = bmssp(graph, l - 1, Bi, Si, d_hat, complete, k, t)
+        rec = bmssp(graph, l - 1, Bi, Si, d_hat, complete, k, t, verbose)
+        B_prime_i, U_i = rec.B, rec.U
         U |= U_i
         K: List[Tuple[Node, float]] = []
         for u in U_i:
@@ -265,15 +335,25 @@ def bmssp(graph: Graph, l: int, B: float, S: Set[Node], d_hat: Dict[Node, float]
                         K.append((v, d_hat[v]))
         prepend_items = K + [(x, d_hat[x]) for x in Si if B_prime_i <= d_hat[x] < Bi]
         D.batch_prepend(prepend_items)
+    if verbose:
+        if len(U) >= k * (2 ** (l * t)):
+            reason = "U size reached"
+        elif not D.non_empty():
+            reason = "queue empty"
+        else:
+            reason = "condition false"
+        print(f"bmssp: terminating loop due to {reason}")
 
     B_prime = min(B0_prime, B)
     U |= {x for x in W if d_hat[x] < B_prime}
     complete |= U
-    return B_prime, U
+    if verbose:
+        print(f"bmssp: returning B={B_prime}, |U|={len(U)}")
+    return BMSSPResult(B_prime, U)
 
 
 # ------------------- Main Driver -------------------
-def run_sssp(graph: Graph, source: Node) -> Dict[Node, float]:
+def run_sssp(graph: Graph, source: Node, verbose: bool = False) -> Dict[Node, float]:
     n = len(graph.adj)
     k = max(1, int(math.log(n, 2) ** (1 / 3)))  # ⌊log^{1/3} n⌋
     t = max(1, int(math.log(n, 2) ** (2 / 3)))  # ⌊log^{2/3} n⌋
@@ -283,7 +363,7 @@ def run_sssp(graph: Graph, source: Node) -> Dict[Node, float]:
     d_hat[source] = 0.0
     complete: Set[Node] = {source}
 
-    bmssp(graph, l, math.inf, {source}, d_hat, complete, k, t)
+    bmssp(graph, l, math.inf, {source}, d_hat, complete, k, t, verbose)
     return d_hat
 
 

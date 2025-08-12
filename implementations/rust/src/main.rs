@@ -13,16 +13,18 @@ struct Graph {
 
 impl Graph {
     fn new() -> Self {
-        Self { adj: HashMap::new() }
+        Self {
+            adj: HashMap::new(),
+        }
     }
     fn add_edge(&mut self, u: &str, v: &str, w: f64) {
         if w < 0.0 {
             panic!("Only non-negative weights allowed");
         }
-        self.adj
-            .entry(u.to_string())
-            .or_default()
-            .push(Edge { to: v.to_string(), w });
+        self.adj.entry(u.to_string()).or_default().push(Edge {
+            to: v.to_string(),
+            w,
+        });
         self.adj.entry(v.to_string()).or_default();
     }
     fn neighbors<'a>(&'a self, u: &str) -> std::slice::Iter<'a, Edge> {
@@ -130,6 +132,23 @@ struct PullResult {
     nodes: HashSet<String>,
 }
 
+// -------- Result containers for API consistency --------
+
+struct PivotResult {
+    p: HashSet<String>,
+    w: HashSet<String>,
+}
+
+struct BaseCaseResult {
+    b: f64,
+    u: HashSet<String>,
+}
+
+struct BMSSPResult {
+    b: f64,
+    u: HashSet<String>,
+}
+
 fn base_case(
     graph: &Graph,
     b: f64,
@@ -137,7 +156,8 @@ fn base_case(
     d_hat: &mut HashMap<String, f64>,
     complete: &mut HashSet<String>,
     k: usize,
-) -> (f64, HashSet<String>) {
+    verbose: bool,
+) -> BaseCaseResult {
     let x = s.iter().next().unwrap().clone();
     let mut u0 = HashSet::new();
     u0.insert(x.clone());
@@ -147,6 +167,9 @@ fn base_case(
         dist: *d_hat.get(&x).unwrap(),
     });
     let mut visited = HashSet::new();
+    if verbose {
+        println!("base_case: start from {} B={}", x, b);
+    }
     while let Some(NodeDist { node: u, dist: du }) = h.pop() {
         if visited.contains(&u) {
             continue;
@@ -169,30 +192,43 @@ fn base_case(
         }
     }
     if u0.len() <= k {
-        (b, u0)
+        if verbose {
+            println!("base_case: early termination |U0| <= k");
+        }
+        BaseCaseResult { b, u: u0 }
     } else {
         let mut b_prime = f64::NEG_INFINITY;
         for v in &u0 {
             b_prime = b_prime.max(*d_hat.get(v).unwrap());
         }
+        if verbose {
+            println!("base_case: computed B'={}", b_prime);
+        }
         let subset = u0
             .into_iter()
             .filter(|v| d_hat.get(v).unwrap() < &b_prime)
             .collect();
-        (b_prime, subset)
+        BaseCaseResult {
+            b: b_prime,
+            u: subset,
+        }
     }
 }
 
 fn find_pivots(
     _graph: &Graph,
-    _b: f64,
+    b: f64,
     s: &HashSet<String>,
     _d_hat: &HashMap<String, f64>,
     _complete: &HashSet<String>,
     k: usize,
-) -> (HashSet<String>, HashSet<String>) {
+    verbose: bool,
+) -> PivotResult {
     let mut pivots = HashSet::new();
     let mut witnesses = HashSet::new();
+    if verbose {
+        println!("find_pivots: start |S|={} B={}", s.len(), b);
+    }
     let mut count = 0;
     for x in s {
         if count < k {
@@ -202,7 +238,13 @@ fn find_pivots(
         }
         count += 1;
     }
-    (pivots, witnesses)
+    if verbose {
+        println!("find_pivots: pivots={:?}", pivots);
+    }
+    PivotResult {
+        p: pivots,
+        w: witnesses,
+    }
 }
 
 fn bmssp(
@@ -214,11 +256,24 @@ fn bmssp(
     complete: &mut HashSet<String>,
     k: usize,
     t: usize,
-) -> (f64, HashSet<String>) {
-    if l == 0 {
-        return base_case(graph, b, s, d_hat, complete, k);
+    verbose: bool,
+) -> BMSSPResult {
+    if verbose {
+        println!("bmssp: level={} B={} |S|={}", l, b, s.len());
     }
-    let (p, w) = find_pivots(graph, b, s, d_hat, complete, k);
+    if l == 0 {
+        let bc = base_case(graph, b, s, d_hat, complete, k, verbose);
+        if verbose {
+            println!("bmssp: base case returns B={} |U|={}", bc.b, bc.u.len());
+        }
+        return BMSSPResult { b: bc.b, u: bc.u };
+    }
+    let piv = find_pivots(graph, b, s, d_hat, complete, k, verbose);
+    let mut p = piv.p;
+    let w = piv.w;
+    if verbose {
+        println!("bmssp: pivots={:?}", p);
+    }
     let m = 2usize.pow(((l - 1) * t) as u32);
     let mut dq = DQueue::new(m, b);
     for x in &p {
@@ -226,11 +281,21 @@ fn bmssp(
         dq.insert(x.clone(), dx);
     }
     let mut u = HashSet::new();
-    let b0_prime = p.iter().map(|x| d_hat.get(x).cloned().unwrap()).fold(b, f64::min);
+    let b0_prime = p
+        .iter()
+        .map(|x| d_hat.get(x).cloned().unwrap())
+        .fold(b, f64::min);
+    if verbose {
+        println!("bmssp: B0'={}", b0_prime);
+    }
     while (u.len() as f64) < (k as f64) * (2usize.pow((l * t) as u32) as f64) && dq.non_empty() {
         let PullResult { b: bi, nodes: si } = dq.pull();
-        let (b_prime_i, ui) = bmssp(graph, l - 1, bi, &si, d_hat, complete, k, t);
-        u.extend(ui.iter().cloned());
+        let rec = bmssp(graph, l - 1, bi, &si, d_hat, complete, k, t, verbose);
+        let b_prime_i = rec.b;
+        let ui = rec.u;
+        for node in &ui {
+            u.insert(node.clone());
+        }
         let mut k_vec = Vec::new();
         for node in &ui {
             let du = d_hat.get(node).cloned().unwrap();
@@ -262,6 +327,16 @@ fn bmssp(
         }
         dq.batch_prepend(prepend_items);
     }
+    if verbose {
+        let reason = if u.len() >= k * (1 << (l * t)) {
+            "U size reached"
+        } else if !dq.non_empty() {
+            "queue empty"
+        } else {
+            "condition"
+        };
+        println!("bmssp: terminating loop due to {}", reason);
+    }
     let mut b_prime = b0_prime.min(b);
     for x in &w {
         if d_hat.get(x).cloned().unwrap_or(f64::INFINITY) < b_prime {
@@ -269,22 +344,22 @@ fn bmssp(
         }
     }
     complete.extend(u.iter().cloned());
-    (b_prime, u)
+    if verbose {
+        println!("bmssp: returning B={} |U|={}", b_prime, u.len());
+    }
+    BMSSPResult { b: b_prime, u }
 }
 
-fn run_sssp(g: &Graph, source: &str) -> HashMap<String, f64> {
+fn run_sssp(g: &Graph, source: &str, verbose: bool) -> HashMap<String, f64> {
     let n = g.nodes().len();
     let k = n;
-    let mut d_hat: HashMap<String, f64> = g
-        .nodes()
-        .into_iter()
-        .map(|v| (v, f64::INFINITY))
-        .collect();
+    let mut d_hat: HashMap<String, f64> =
+        g.nodes().into_iter().map(|v| (v, f64::INFINITY)).collect();
     d_hat.insert(source.to_string(), 0.0);
     let mut complete: HashSet<String> = HashSet::new();
     complete.insert(source.to_string());
     let s: HashSet<String> = [source.to_string()].iter().cloned().collect();
-    base_case(g, f64::INFINITY, &s, &mut d_hat, &mut complete, k);
+    base_case(g, f64::INFINITY, &s, &mut d_hat, &mut complete, k, verbose);
     d_hat
 }
 
@@ -295,6 +370,6 @@ fn main() {
     g.add_edge("a", "b", 2.0);
     g.add_edge("a", "c", 5.0);
     g.add_edge("b", "c", 1.0);
-    let dist = run_sssp(&g, "s");
+    let dist = run_sssp(&g, "s", false);
     println!("Distances from s: {:?}", dist);
 }

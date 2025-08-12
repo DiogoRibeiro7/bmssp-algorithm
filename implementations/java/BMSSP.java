@@ -82,6 +82,7 @@ public class BMSSP {
             for (NodeDist nd : items) {
                 if (nd.dist < B) prepend.add(nd);
             }
+            Collections.sort(prepend);
         }
 
         /** Pull up to M nodes grouped by their distance. */
@@ -119,16 +120,40 @@ public class BMSSP {
         }
     }
 
+    // -------- Result containers for API consistency --------
+
+    /** Container for pivot selection results. */
+    static class PivotResult {
+        final Set<String> P;
+        final Set<String> W;
+        PivotResult(Set<String> p, Set<String> w) { this.P = p; this.W = w; }
+    }
+
+    /** Container for base-case results. */
+    static class BaseCaseResult {
+        final double B;
+        final Set<String> U;
+        BaseCaseResult(double B, Set<String> U) { this.B = B; this.U = U; }
+    }
+
+    /** Container for recursive BMSSP results. */
+    static class BMSSPResult {
+        final double B;
+        final Set<String> U;
+        BMSSPResult(double B, Set<String> U) { this.B = B; this.U = U; }
+    }
+
     /** Base case: expand nodes until reaching k+1 nodes or heap exhausted. */
-    public static Pair<Double, Set<String>> baseCase(
+    public static BaseCaseResult baseCase(
             Graph graph, double B, Set<String> S, Map<String, Double> dHat,
-            Set<String> complete, int k) {
+            Set<String> complete, int k, boolean verbose) {
         Iterator<String> it = S.iterator();
         String x = it.next();
         Set<String> U0 = new HashSet<>(); U0.add(x);
         PriorityQueue<NodeDist> H = new PriorityQueue<>();
         H.add(new NodeDist(x, dHat.get(x)));
         Set<String> visited = new HashSet<>();
+        if (verbose) System.out.println("base_case: start from " + x + " B=" + B);
 
         while (!H.isEmpty() && U0.size() < k + 1) {
             NodeDist nd = H.poll();
@@ -144,52 +169,115 @@ public class BMSSP {
             }
         }
         if (U0.size() <= k) {
-            return new Pair<>(B, U0);
+            if (verbose) System.out.println("base_case: early termination |U0| <= k");
+            return new BaseCaseResult(B, U0);
         } else {
             double Bprime = Double.NEGATIVE_INFINITY;
             for (String v : U0) {
                 Bprime = Math.max(Bprime, dHat.get(v));
             }
+            if (verbose) System.out.println("base_case: computed B'=" + Bprime);
             Set<String> subset = new HashSet<>();
             for (String v : U0) if (dHat.get(v) < Bprime) subset.add(v);
-            return new Pair<>(Bprime, subset);
+            return new BaseCaseResult(Bprime, subset);
         }
     }
 
     /** Find pivots and witnesses as in Lemma 3.2. */
-    public static Pair<Set<String>, Set<String>> findPivots(
+    public static PivotResult findPivots(
             Graph graph, double B, Set<String> S, Map<String, Double> dHat,
-            Set<String> complete, int k) {
-        Set<String> pivots = new HashSet<>();
-        Set<String> witnesses = new HashSet<>();
-        // Simplified pivot selection: choose first k nodes as pivots
-        int count = 0;
-        for (String s : S) {
-            if (count < k) { pivots.add(s); count++; }
-            else witnesses.add(s);
+            Set<String> complete, int k, boolean verbose) {
+        Set<String> W = new HashSet<>(S);
+        Set<String> Wprev = new HashSet<>(S);
+        if (verbose)
+            System.out.println("find_pivots: start |S|=" + S.size() + " B=" + B);
+
+        for (int iter = 1; iter <= k; iter++) {
+            Set<String> Wi = new HashSet<>();
+            for (String u : Wprev) {
+                double du = dHat.get(u);
+                if (du >= B) continue;
+                for (Graph.Edge e : graph.neighbors(u)) {
+                    double alt = du + e.w;
+                    if (alt <= dHat.get(e.to)) {
+                        dHat.put(e.to, alt);
+                        if (alt < B) Wi.add(e.to);
+                    }
+                }
+            }
+            W.addAll(Wi);
+            if (W.size() > k * S.size()) {
+                if (verbose)
+                    System.out.println("find_pivots: early termination |W| > k*|S|");
+                return new PivotResult(new HashSet<>(S), W);
+            }
+            Wprev = Wi;
         }
-        return new Pair<>(pivots, witnesses);
+
+        Map<String, List<String>> children = new HashMap<>();
+        Map<String, Integer> indeg = new HashMap<>();
+        for (String u : W) {
+            children.put(u, new ArrayList<>());
+            indeg.put(u, 0);
+        }
+        for (String u : W) {
+            double du = dHat.get(u);
+            for (Graph.Edge e : graph.neighbors(u)) {
+                String v = e.to; double w = e.w;
+                if (W.contains(v) && Math.abs(dHat.get(v) - (du + w)) < 1e-12) {
+                    children.get(u).add(v);
+                    indeg.put(v, indeg.get(v) + 1);
+                }
+            }
+        }
+
+        Set<String> pivots = new HashSet<>();
+        for (String u : S) {
+            if (indeg.getOrDefault(u, 0) == 0 && subtreeSize(u, children, new HashSet<>()) >= k) {
+                pivots.add(u);
+            }
+        }
+        if (verbose) System.out.println("find_pivots: pivots=" + pivots);
+        return new PivotResult(pivots, W);
+    }
+
+    private static int subtreeSize(String u, Map<String, List<String>> children, Set<String> seen) {
+        if (seen.contains(u)) return 0;
+        seen.add(u);
+        int size = 1;
+        for (String v : children.getOrDefault(u, Collections.emptyList())) {
+            size += subtreeSize(v, children, seen);
+        }
+        seen.remove(u);
+        return size;
     }
 
     /** Recursive BMSSP algorithm. */
-    public static Pair<Double, Set<String>> bmssp(
+    public static BMSSPResult bmssp(
             Graph graph, int l, double B, Set<String> S, Map<String, Double> dHat,
-            Set<String> complete, int k, int t) {
+            Set<String> complete, int k, int t, boolean verbose) {
+        if (verbose)
+            System.out.println("bmssp: level=" + l + " B=" + B + " |S|=" + S.size());
         if (l == 0) {
-            return baseCase(graph, B, S, dHat, complete, k);
+            BaseCaseResult bc = baseCase(graph, B, S, dHat, complete, k, verbose);
+            if (verbose)
+                System.out.println("bmssp: base case returns B=" + bc.B + " |U|=" + bc.U.size());
+            return new BMSSPResult(bc.B, bc.U);
         }
-        Pair<Set<String>, Set<String>> pw = findPivots(graph, B, S, dHat, complete, k);
-        Set<String> P = pw.first; Set<String> W = pw.second;
+        PivotResult pw = findPivots(graph, B, S, dHat, complete, k, verbose);
+        Set<String> P = pw.P; Set<String> W = pw.W;
+        if (verbose) System.out.println("bmssp: pivots=" + P);
         int M = (int)Math.pow(2, (l - 1) * t);
         DQueue D = new DQueue(M, B);
         for (String x : P) D.insert(x, dHat.get(x));
         Set<String> U = new HashSet<>();
         double B0Prime = P.stream().mapToDouble(dHat::get).min().orElse(B);
+        if (verbose) System.out.println("bmssp: B0'=" + B0Prime);
         while (U.size() < k * Math.pow(2, l * t) && D.nonEmpty()) {
             DQueue.PullResult pr = D.pull();
             double Bi = pr.B; Set<String> Si = pr.nodes;
-            Pair<Double, Set<String>> rec = bmssp(graph, l - 1, Bi, Si, dHat, complete, k, t);
-            double Bprime_i = rec.first; Set<String> Ui = rec.second; U.addAll(Ui);
+            BMSSPResult rec = bmssp(graph, l - 1, Bi, Si, dHat, complete, k, t, verbose);
+            double Bprime_i = rec.B; Set<String> Ui = rec.U; U.addAll(Ui);
             List<NodeDist> K = new ArrayList<>();
             for (String u : Ui) {
                 for (Graph.Edge e : graph.neighbors(u)) {
@@ -208,30 +296,35 @@ public class BMSSP {
             }
             D.batchPrepend(prependItems);
         }
+        if (verbose) {
+            String reason = "condition";
+            if (U.size() >= k * Math.pow(2, l * t)) reason = "U size reached";
+            else if (!D.nonEmpty()) reason = "queue empty";
+            System.out.println("bmssp: terminating loop due to " + reason);
+        }
         double Bprime = Math.min(B0Prime, B);
         for (String x : W) if (dHat.get(x) < Bprime) U.add(x);
         complete.addAll(U);
-        return new Pair<>(Bprime, U);
-    }
-
-    /** Simple pair utility. */
-    public static class Pair<A, B> {
-        public final A first; public final B second;
-        Pair(A a, B b) { first = a; second = b; }
+        if (verbose)
+            System.out.println("bmssp: returning B=" + Bprime + " |U|=" + U.size());
+        return new BMSSPResult(Bprime, U);
     }
 
     /** Runs SSSP from a single source using BMSSP. */
-    public static Map<String, Double> runSSSP(Graph g, String source) {
+    public static Map<String, Double> runSSSP(Graph g, String source, boolean verbose) {
         int n = g.nodes().size();
-        int k = n; // use base case with full expansion (Dijkstra-like)
+        double log2n = Math.log(n) / Math.log(2);
+        int k = (int)Math.max(1.0, Math.cbrt(log2n));
+        int t = (int)Math.max(1.0, Math.pow(log2n, 2.0/3.0));
+        int l = (int)Math.ceil(log2n / t);
         Map<String, Double> dHat = new HashMap<>();
         for (String v : g.nodes()) dHat.put(v, Double.POSITIVE_INFINITY);
         dHat.put(source, 0.0);
         Set<String> complete = new HashSet<>();
         complete.add(source);
-
-        baseCase(g, Double.POSITIVE_INFINITY, new HashSet<>(Arrays.asList(source)),
-                 dHat, complete, k);
+        Set<String> S = new HashSet<>();
+        S.add(source);
+        bmssp(g, l, Double.POSITIVE_INFINITY, S, dHat, complete, k, t, verbose);
         return dHat;
     }
 
@@ -244,7 +337,7 @@ public class BMSSP {
         g.addEdge("a", "c", 5);
         g.addEdge("b", "c", 1);
 
-        Map<String, Double> dist = runSSSP(g, "s");
+        Map<String, Double> dist = runSSSP(g, "s", false);
         System.out.println("Distances from s: " + dist);
     }
 }
