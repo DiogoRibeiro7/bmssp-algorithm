@@ -85,6 +85,7 @@ class DQueue:
 
     def batch_prepend(self, items: List[Tuple[Node, float]]) -> None:
         self.prepend.extend((dist, node) for node, dist in items if dist < self.B)
+        self.prepend.sort()
 
     def pull(self) -> Tuple[float, Set[Node]]:
         if self.prepend:

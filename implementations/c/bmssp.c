@@ -260,6 +260,10 @@ PivotResult find_pivots(Graph *graph, double B, IntArray *S, double *d_hat, IntA
     }
     IntArray *children = (IntArray*)malloc(graph->n * sizeof(IntArray));
     int *indeg = (int*)calloc(graph->n, sizeof(int));
+    if (!children || !indeg) {
+        fprintf(stderr, "find_pivots: memory allocation failed\n");
+        free(children); free(indeg); ia_free(&W_prev); ia_free(&W); exit(1);
+    }
     for (int i = 0; i < graph->n; i++) ia_init(&children[i]);
     for (int idx = 0; idx < W.count; idx++) {
         int u = W.data[idx]; double du = d_hat[u];
@@ -275,6 +279,11 @@ PivotResult find_pivots(Graph *graph, double B, IntArray *S, double *d_hat, IntA
 
     PivotResult res; ia_init(&res.P); res.W = W;
     int *seen = (int*)calloc(graph->n, sizeof(int));
+    if (!seen) {
+        fprintf(stderr, "find_pivots: memory allocation failed\n");
+        for (int i = 0; i < graph->n; i++) ia_free(&children[i]);
+        free(children); free(indeg); ia_free(&W_prev); ia_free(&res.P); ia_free(&W); exit(1);
+    }
     for (int idx = 0; idx < S->count; idx++) {
         int u = S->data[idx];
         if (indeg[u] == 0 && subtree_size_rec(u, children, seen) >= k) ia_add_unique(&res.P, u);

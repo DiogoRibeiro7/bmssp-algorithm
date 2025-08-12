@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"fmt"
 	"math"
+	"sort"
 )
 
 // -------- Graph --------
@@ -80,6 +81,7 @@ func (dq *DQueue) BatchPrepend(items []nodeDist) {
 			dq.prepend = append(dq.prepend, it)
 		}
 	}
+	sort.Slice(dq.prepend, func(i, j int) bool { return dq.prepend[i].dist < dq.prepend[j].dist })
 }
 
 func (dq *DQueue) Pull() (float64, map[string]struct{}) {

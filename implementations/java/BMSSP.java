@@ -82,6 +82,7 @@ public class BMSSP {
             for (NodeDist nd : items) {
                 if (nd.dist < B) prepend.add(nd);
             }
+            Collections.sort(prepend);
         }
 
         /** Pull up to M nodes grouped by their distance. */
@@ -186,16 +187,69 @@ public class BMSSP {
     public static PivotResult findPivots(
             Graph graph, double B, Set<String> S, Map<String, Double> dHat,
             Set<String> complete, int k, boolean verbose) {
+        Set<String> W = new HashSet<>(S);
+        Set<String> Wprev = new HashSet<>(S);
+        if (verbose)
+            System.out.println("find_pivots: start |S|=" + S.size() + " B=" + B);
+
+        for (int iter = 1; iter <= k; iter++) {
+            Set<String> Wi = new HashSet<>();
+            for (String u : Wprev) {
+                double du = dHat.get(u);
+                if (du >= B) continue;
+                for (Graph.Edge e : graph.neighbors(u)) {
+                    double alt = du + e.w;
+                    if (alt <= dHat.get(e.to)) {
+                        dHat.put(e.to, alt);
+                        if (alt < B) Wi.add(e.to);
+                    }
+                }
+            }
+            W.addAll(Wi);
+            if (W.size() > k * S.size()) {
+                if (verbose)
+                    System.out.println("find_pivots: early termination |W| > k*|S|");
+                return new PivotResult(new HashSet<>(S), W);
+            }
+            Wprev = Wi;
+        }
+
+        Map<String, List<String>> children = new HashMap<>();
+        Map<String, Integer> indeg = new HashMap<>();
+        for (String u : W) {
+            children.put(u, new ArrayList<>());
+            indeg.put(u, 0);
+        }
+        for (String u : W) {
+            double du = dHat.get(u);
+            for (Graph.Edge e : graph.neighbors(u)) {
+                String v = e.to; double w = e.w;
+                if (W.contains(v) && Math.abs(dHat.get(v) - (du + w)) < 1e-12) {
+                    children.get(u).add(v);
+                    indeg.put(v, indeg.get(v) + 1);
+                }
+            }
+        }
+
         Set<String> pivots = new HashSet<>();
-        Set<String> witnesses = new HashSet<>();
-        if (verbose) System.out.println("find_pivots: start |S|=" + S.size() + " B=" + B);
-        int count = 0;
-        for (String s : S) {
-            if (count < k) { pivots.add(s); count++; }
-            else witnesses.add(s);
+        for (String u : S) {
+            if (indeg.getOrDefault(u, 0) == 0 && subtreeSize(u, children, new HashSet<>()) >= k) {
+                pivots.add(u);
+            }
         }
         if (verbose) System.out.println("find_pivots: pivots=" + pivots);
-        return new PivotResult(pivots, witnesses);
+        return new PivotResult(pivots, W);
+    }
+
+    private static int subtreeSize(String u, Map<String, List<String>> children, Set<String> seen) {
+        if (seen.contains(u)) return 0;
+        seen.add(u);
+        int size = 1;
+        for (String v : children.getOrDefault(u, Collections.emptyList())) {
+            size += subtreeSize(v, children, seen);
+        }
+        seen.remove(u);
+        return size;
     }
 
     /** Recursive BMSSP algorithm. */
@@ -259,15 +313,18 @@ public class BMSSP {
     /** Runs SSSP from a single source using BMSSP. */
     public static Map<String, Double> runSSSP(Graph g, String source, boolean verbose) {
         int n = g.nodes().size();
-        int k = n; // use base case with full expansion (Dijkstra-like)
+        double log2n = Math.log(n) / Math.log(2);
+        int k = (int)Math.max(1.0, Math.cbrt(log2n));
+        int t = (int)Math.max(1.0, Math.pow(log2n, 2.0/3.0));
+        int l = (int)Math.ceil(log2n / t);
         Map<String, Double> dHat = new HashMap<>();
         for (String v : g.nodes()) dHat.put(v, Double.POSITIVE_INFINITY);
         dHat.put(source, 0.0);
         Set<String> complete = new HashSet<>();
         complete.add(source);
-
-        baseCase(g, Double.POSITIVE_INFINITY, new HashSet<>(Arrays.asList(source)),
-                 dHat, complete, k, verbose);
+        Set<String> S = new HashSet<>();
+        S.add(source);
+        bmssp(g, l, Double.POSITIVE_INFINITY, S, dHat, complete, k, t, verbose);
         return dHat;
     }
 
