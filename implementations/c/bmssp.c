@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <math.h>
 #include <float.h>
+#include <string.h>
+#include <ctype.h>
 
 #define INF DBL_MAX
 
@@ -42,6 +44,184 @@ void add_edge(Graph *g, int u, int v, double w) {
         g->adj[v].edges = NULL;
         g->adj[v].capacity = 0;
     }
+}
+
+void free_graph(Graph *g) {
+    if (!g) return;
+    for (int i = 0; i < g->n; i++) free(g->adj[i].edges);
+    free(g->adj);
+    free(g);
+}
+
+// -------- Name index and DOT parsing helpers --------
+
+typedef struct {
+    char **names;
+    int count;
+    int capacity;
+} NameIndex;
+
+void ni_init(NameIndex *ni) {
+    ni->names = NULL;
+    ni->count = 0;
+    ni->capacity = 0;
+}
+
+void ni_free(NameIndex *ni) {
+    for (int i = 0; i < ni->count; i++) free(ni->names[i]);
+    free(ni->names);
+    ni->names = NULL;
+    ni->count = 0;
+    ni->capacity = 0;
+}
+
+int ni_index_of(const NameIndex *ni, const char *name) {
+    for (int i = 0; i < ni->count; i++) {
+        if (strcmp(ni->names[i], name) == 0) return i;
+    }
+    return -1;
+}
+
+int ni_get_or_add(NameIndex *ni, const char *name) {
+    int idx = ni_index_of(ni, name);
+    if (idx >= 0) return idx;
+    if (ni->count == ni->capacity) {
+        ni->capacity = ni->capacity ? ni->capacity * 2 : 8;
+        ni->names = (char**)realloc(ni->names, ni->capacity * sizeof(char*));
+        if (!ni->names) {
+            fprintf(stderr, "Memory allocation failed while growing name index\n");
+            exit(1);
+        }
+    }
+    ni->names[ni->count] = strdup(name);
+    if (!ni->names[ni->count]) {
+        fprintf(stderr, "Memory allocation failed while storing node name\n");
+        exit(1);
+    }
+    return ni->count++;
+}
+
+typedef struct {
+    int from;
+    int to;
+    double weight;
+} EdgeRecord;
+
+typedef struct {
+    EdgeRecord *data;
+    int count;
+    int capacity;
+} EdgeArray;
+
+void ea_init(EdgeArray *ea) {
+    ea->data = NULL;
+    ea->count = 0;
+    ea->capacity = 0;
+}
+
+void ea_free(EdgeArray *ea) {
+    free(ea->data);
+    ea->data = NULL;
+    ea->count = 0;
+    ea->capacity = 0;
+}
+
+void ea_push(EdgeArray *ea, int from, int to, double weight) {
+    if (ea->count == ea->capacity) {
+        ea->capacity = ea->capacity ? ea->capacity * 2 : 16;
+        ea->data = (EdgeRecord*)realloc(ea->data, ea->capacity * sizeof(EdgeRecord));
+        if (!ea->data) {
+            fprintf(stderr, "Memory allocation failed while storing edges\n");
+            exit(1);
+        }
+    }
+    ea->data[ea->count++] = (EdgeRecord){from, to, weight};
+}
+
+void trim_whitespace(char *str) {
+    char *start = str;
+    while (*start && isspace((unsigned char)*start)) start++;
+    if (start != str) memmove(str, start, strlen(start) + 1);
+    size_t len = strlen(str);
+    while (len > 0 && isspace((unsigned char)str[len - 1])) {
+        str[len - 1] = '\0';
+        len--;
+    }
+}
+
+Graph* load_graph_from_dot(const char *filename, NameIndex *names) {
+    ni_init(names);
+    FILE *fp = fopen(filename, "r");
+    if (!fp) {
+        fprintf(stderr, "Failed to open DOT file: %s\n", filename);
+        return NULL;
+    }
+
+    EdgeArray edges; ea_init(&edges);
+    char line[1024];
+
+    while (fgets(line, sizeof(line), fp)) {
+        char *arrow = strstr(line, "->");
+        if (arrow) {
+            char from_buf[256];
+            char to_buf[256];
+            size_t from_len = (size_t)(arrow - line);
+            if (from_len >= sizeof(from_buf)) from_len = sizeof(from_buf) - 1;
+            strncpy(from_buf, line, from_len);
+            from_buf[from_len] = '\0';
+            trim_whitespace(from_buf);
+            char *rest = arrow + 2;
+            while (*rest && isspace((unsigned char)*rest)) rest++;
+            size_t to_len = 0;
+            while (rest[to_len] && !isspace((unsigned char)rest[to_len]) && rest[to_len] != '[' && rest[to_len] != ';') {
+                to_len++;
+            }
+            if (to_len >= sizeof(to_buf)) to_len = sizeof(to_buf) - 1;
+            strncpy(to_buf, rest, to_len);
+            to_buf[to_len] = '\0';
+            trim_whitespace(to_buf);
+            if (from_buf[0] == '\0' || to_buf[0] == '\0') continue;
+            double weight = 1.0;
+            char *label = strstr(rest + to_len, "label");
+            if (label) {
+                char *eq = strchr(label, '=');
+                if (eq) {
+                    weight = strtod(eq + 1, NULL);
+                }
+            }
+            int from_idx = ni_get_or_add(names, from_buf);
+            int to_idx = ni_get_or_add(names, to_buf);
+            ea_push(&edges, from_idx, to_idx, weight);
+        } else {
+            char *semi = strchr(line, ';');
+            if (semi) {
+                char node_buf[256];
+                size_t len = (size_t)(semi - line);
+                if (len >= sizeof(node_buf)) len = sizeof(node_buf) - 1;
+                strncpy(node_buf, line, len);
+                node_buf[len] = '\0';
+                trim_whitespace(node_buf);
+                if (node_buf[0] && strcmp(node_buf, "}") != 0 && strncmp(node_buf, "digraph", 7) != 0) {
+                    ni_get_or_add(names, node_buf);
+                }
+            }
+        }
+    }
+    fclose(fp);
+
+    if (names->count == 0) {
+        fprintf(stderr, "DOT file %s did not contain any nodes\n", filename);
+        ea_free(&edges);
+        return NULL;
+    }
+
+    Graph *graph = new_graph(names->count);
+    for (int i = 0; i < edges.count; i++) {
+        EdgeRecord er = edges.data[i];
+        add_edge(graph, er.from, er.to, er.weight);
+    }
+    ea_free(&edges);
+    return graph;
 }
 
 // -------- IntArray helper (used as sets) --------
@@ -226,7 +406,7 @@ int subtree_size_rec(int u, IntArray *children, int *seen) {
     return size;
 }
 
-PivotResult find_pivots(Graph *graph, double B, IntArray *S, double *d_hat, IntArray *complete, int k, int verbose) {
+PivotResult find_pivots(Graph *graph, double B, IntArray *S, double *d_hat, int *pred, IntArray *complete, int k, int verbose) {
     IntArray W; ia_init(&W); ia_copy(&W, S);
     IntArray W_prev; ia_init(&W_prev); ia_copy(&W_prev, S);
     if (verbose) printf("find_pivots: start |S|=%d, B=%g\n", S->count, B);
@@ -241,6 +421,7 @@ PivotResult find_pivots(Graph *graph, double B, IntArray *S, double *d_hat, IntA
                 int v = lst->edges[e].to; double w = lst->edges[e].w;
                 if (du + w <= d_hat[v]) {
                     d_hat[v] = du + w;
+                    pred[v] = u;
                     if (du + w < B) ia_add_unique(&W_i, v);
                 }
             }
@@ -303,7 +484,7 @@ PivotResult find_pivots(Graph *graph, double B, IntArray *S, double *d_hat, IntA
 }
 
 // -------- Algorithm 2: BaseCase --------
-BaseCaseResult base_case(Graph *graph, double B, IntArray *S, double *d_hat, IntArray *complete, int k, int verbose) {
+BaseCaseResult base_case(Graph *graph, double B, IntArray *S, double *d_hat, int *pred, IntArray *complete, int k, int verbose) {
     int x = S->data[0];
     IntArray U0; ia_init(&U0); ia_add_unique(&U0, x);
     MinHeap H; heap_init(&H); heap_push(&H, (NodeDist){d_hat[x], x});
@@ -316,7 +497,7 @@ BaseCaseResult base_case(Graph *graph, double B, IntArray *S, double *d_hat, Int
         for (int e = 0; e < lst->count; e++) {
             int v = lst->edges[e].to; double w = lst->edges[e].w;
             if (du + w <= d_hat[v] && du + w < B) {
-                d_hat[v] = du + w; heap_push(&H, (NodeDist){d_hat[v], v});
+                d_hat[v] = du + w; pred[v] = u; heap_push(&H, (NodeDist){d_hat[v], v});
             }
         }
     }
@@ -339,15 +520,15 @@ BaseCaseResult base_case(Graph *graph, double B, IntArray *S, double *d_hat, Int
 }
 
 // -------- Algorithm 3: BMSSP --------
-BMSSPResult bmssp(Graph *graph, int l, double B, IntArray *S, double *d_hat, IntArray *complete, int k, int t, int verbose) {
+BMSSPResult bmssp(Graph *graph, int l, double B, IntArray *S, double *d_hat, int *pred, IntArray *complete, int k, int t, int verbose) {
     if (verbose) printf("bmssp: level=%d, B=%g, |S|=%d\n", l, B, S->count);
     if (l == 0) {
-        BaseCaseResult bc = base_case(graph, B, S, d_hat, complete, k, verbose);
+        BaseCaseResult bc = base_case(graph, B, S, d_hat, pred, complete, k, verbose);
         if (verbose) printf("bmssp: base case returns B=%g, |U|=%d\n", bc.B, bc.U.count);
         BMSSPResult res = {bc.B, bc.U};
         return res;
     }
-    PivotResult piv = find_pivots(graph, B, S, d_hat, complete, k, verbose);
+    PivotResult piv = find_pivots(graph, B, S, d_hat, pred, complete, k, verbose);
     IntArray P = piv.P; IntArray W = piv.W;
     if (verbose) {
         printf("bmssp: pivots={");
@@ -366,7 +547,7 @@ BMSSPResult bmssp(Graph *graph, int l, double B, IntArray *S, double *d_hat, Int
     if (verbose) printf("bmssp: B0'=%g\n", B0_prime);
     while (U.count < k * (1 << (l * t)) && dq_non_empty(&D)) {
         double Bi; IntArray Si; dq_pull(&D, &Bi, &Si);
-        BMSSPResult rec = bmssp(graph, l - 1, Bi, &Si, d_hat, complete, k, t, verbose);
+        BMSSPResult rec = bmssp(graph, l - 1, Bi, &Si, d_hat, pred, complete, k, t, verbose);
         double B_prime_i = rec.B; IntArray U_i = rec.U;
         for (int j = 0; j < U_i.count; j++) ia_add_unique(&U, U_i.data[j]);
         IntArray K; ia_init(&K);
@@ -376,6 +557,7 @@ BMSSPResult bmssp(Graph *graph, int l, double B, IntArray *S, double *d_hat, Int
                 int v = lst->edges[e].to; double w = lst->edges[e].w;
                 if (d_hat[u] + w <= d_hat[v]) {
                     d_hat[v] = d_hat[u] + w;
+                    pred[v] = u;
                     if (Bi <= d_hat[v] && d_hat[v] < B) dq_insert(&D, v, d_hat[v]);
                     else if (B_prime_i <= d_hat[v] && d_hat[v] < Bi) ia_add_unique(&K, v);
                 }
@@ -412,38 +594,154 @@ BMSSPResult bmssp(Graph *graph, int l, double B, IntArray *S, double *d_hat, Int
 }
 
 // -------- Main Driver --------
-void run_sssp(Graph *graph, int source, double *d_hat, int verbose) {
+void run_sssp(Graph *graph, int source, double *d_hat, int *pred, int verbose) {
     int n = graph->n;
     double log2n = log2((double)n);
     int k = (int)fmax(1.0, pow(log2n, 1.0/3.0));
     int t = (int)fmax(1.0, pow(log2n, 2.0/3.0));
     int l = (int)ceil(log2n / t);
-    for (int i = 0; i < n; i++) d_hat[i] = INF;
-    d_hat[source] = 0.0;
+    for (int i = 0; i < n; i++) { d_hat[i] = INF; pred[i] = -1; }
+    d_hat[source] = 0.0; pred[source] = source;
     IntArray complete; ia_init(&complete); ia_add_unique(&complete, source);
     IntArray S; ia_init(&S); ia_add_unique(&S, source);
-    BMSSPResult res = bmssp(graph, l, INF, &S, d_hat, &complete, k, t, verbose);
+    BMSSPResult res = bmssp(graph, l, INF, &S, d_hat, pred, &complete, k, t, verbose);
     ia_free(&res.U);
     ia_free(&complete); ia_free(&S);
 }
 
-int main() {
-    // Example graph with nodes: 0=s,1=a,2=b,3=c
-    Graph *g = new_graph(4);
-    add_edge(g, 0, 1, 1);
-    add_edge(g, 0, 2, 4);
-    add_edge(g, 1, 2, 2);
-    add_edge(g, 1, 3, 5);
-    add_edge(g, 2, 3, 1);
-    double dist[4];
-    run_sssp(g, 0, dist, 0);
-    for (int i = 0; i < 4; i++) {
-        if (dist[i] == INF) printf("inf\n");
-        else printf("%g\n", dist[i]);
+void dijkstra_shortest_paths(Graph *graph, int source, double *dist, int *pred) {
+    int n = graph->n;
+    for (int i = 0; i < n; i++) { dist[i] = INF; pred[i] = -1; }
+    dist[source] = 0.0; pred[source] = source;
+    MinHeap heap; heap_init(&heap);
+    heap_push(&heap, (NodeDist){0.0, source});
+    int *visited = (int*)calloc(n, sizeof(int));
+    if (!visited) {
+        fprintf(stderr, "Memory allocation failed in Dijkstra\n");
+        heap_free(&heap);
+        return;
     }
-    // free graph
-    for (int i = 0; i < g->n; i++) free(g->adj[i].edges);
-    free(g->adj); free(g);
+    while (!heap_empty(&heap)) {
+        NodeDist nd = heap_pop(&heap);
+        int u = nd.node;
+        if (visited[u]) continue;
+        visited[u] = 1;
+        EdgeList *lst = &graph->adj[u];
+        for (int e = 0; e < lst->count; e++) {
+            int v = lst->edges[e].to; double w = lst->edges[e].w;
+            if (dist[u] + w < dist[v]) {
+                dist[v] = dist[u] + w;
+                pred[v] = u;
+                heap_push(&heap, (NodeDist){dist[v], v});
+            }
+        }
+    }
+    free(visited);
+    heap_free(&heap);
+}
+
+void print_path_from_source(int source, int target, const NameIndex *names, const double *dist, const int *pred) {
+    const char *src_name = names->names[source];
+    const char *dst_name = names->names[target];
+    if (dist[target] == INF || pred[target] == -1) {
+        if (target == source && dist[target] == 0.0) {
+            printf("Shortest path from %s to %s (distance 0): %s\n", src_name, dst_name, src_name);
+            return;
+        }
+        printf("No path from %s to %s.\n", src_name, dst_name);
+        return;
+    }
+    int n = names->count;
+    int *path = (int*)malloc(n * sizeof(int));
+    if (!path) {
+        fprintf(stderr, "Memory allocation failed while printing path\n");
+        return;
+    }
+    int len = 0;
+    int current = target;
+    while (current != -1 && len < n) {
+        path[len++] = current;
+        if (current == source) break;
+        current = pred[current];
+    }
+    if (current == -1 || (len == n && path[len - 1] != source)) {
+        printf("No path from %s to %s.\n", src_name, dst_name);
+        free(path);
+        return;
+    }
+    printf("Shortest path from %s to %s (distance %.6g): ", src_name, dst_name, dist[target]);
+    for (int i = len - 1; i >= 0; i--) {
+        printf("%s", names->names[path[i]]);
+        if (i) printf(" -> ");
+    }
+    printf("\n");
+    free(path);
+}
+
+void print_all_paths(int source, const NameIndex *names, const double *dist, const int *pred) {
+    for (int i = 0; i < names->count; i++) {
+        print_path_from_source(source, i, names, dist, pred);
+    }
+}
+
+int main(int argc, char **argv) {
+    if (argc < 3 || argc > 4) {
+        fprintf(stderr, "Usage: %s <graph.dot> <source> [target]\n", argv[0]);
+        return 1;
+    }
+
+    const char *dot_file = argv[1];
+    const char *source_name = argv[2];
+    const char *target_name = (argc == 4) ? argv[3] : NULL;
+
+    NameIndex names;
+    Graph *graph = load_graph_from_dot(dot_file, &names);
+    if (!graph) {
+        ni_free(&names);
+        return 1;
+    }
+
+    int source_idx = ni_index_of(&names, source_name);
+    if (source_idx < 0) {
+        fprintf(stderr, "Source node '%s' not found in %s\n", source_name, dot_file);
+        free_graph(graph);
+        ni_free(&names);
+        return 1;
+    }
+
+    int target_idx = -1;
+    if (target_name) {
+        target_idx = ni_index_of(&names, target_name);
+        if (target_idx < 0) {
+            fprintf(stderr, "Target node '%s' not found in %s\n", target_name, dot_file);
+            free_graph(graph);
+            ni_free(&names);
+            return 1;
+        }
+    }
+
+    double *dist = (double*)malloc(graph->n * sizeof(double));
+    int *pred = (int*)malloc(graph->n * sizeof(int));
+    if (!dist || !pred) {
+        fprintf(stderr, "Memory allocation failed for algorithm buffers\n");
+        free(dist); free(pred);
+        free_graph(graph);
+        ni_free(&names);
+        return 1;
+    }
+
+    dijkstra_shortest_paths(graph, source_idx, dist, pred);
+
+    if (target_name) {
+        print_path_from_source(source_idx, target_idx, &names, dist, pred);
+    } else {
+        print_all_paths(source_idx, &names, dist, pred);
+    }
+
+    free(dist);
+    free(pred);
+    free_graph(graph);
+    ni_free(&names);
     return 0;
 }
 
