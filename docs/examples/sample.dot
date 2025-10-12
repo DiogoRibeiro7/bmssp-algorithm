@@ -1,0 +1,17 @@
+// Example graph for bmssp CLI usage
+// Weighted directed graph sourced from README walkthroughs
+
+digraph G {
+  A -> B [label=3];
+  A -> C [label=6];
+  B -> C [label=4];
+  B -> D [label=4];
+  C -> D [label=8];
+  C -> E [label=3];
+  D -> E [label=2];
+  D -> F [label=5];
+  E -> F [label=1];
+  E -> G [label=7];
+  F -> H [label=2];
+  G -> H [label=3];
+}

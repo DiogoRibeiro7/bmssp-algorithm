@@ -10,7 +10,6 @@ This repository contains **multi-language reference implementations** of the alg
 
 Currently implemented in:
 
- - ✅ Python
  - ✅ Go
  - ✅ Fortran
  - ✅ C
@@ -19,26 +18,9 @@ Currently implemented in:
 
 ---
 
-## Algorithm Overview
-
-The BMSSP (Bounded Multi-Source Shortest Path) algorithm uses a novel recursive partitioning technique that merges ideas from both Dijkstra's algorithm and the Bellman-Ford algorithm:
-
-### Core Innovation
-
-- **Frontier Reduction**: Instead of maintaining a frontier of size Θ(n), the algorithm reduces it to |U|/log^Ω(1)(n)
-- **Pivot Selection**: Uses bounded Bellman-Ford expansion to identify "pivot" vertices that cover large subtrees
-- **Recursive Structure**: Employs O(log n / t) levels of recursion with specialized data structures
-
-### Key Components
-
-1. **FindPivots** (Lemma 3.2) – Bounded Bellman-Ford expansion with pivot selection
-2. **BaseCase** – Small-instance solver using Dijkstra-like approach  
-3. **BMSSP** – Main recursive bounded multi-source shortest path solver
-4. **DQueue** – Specialized data structure supporting bounded batch operations
-
 📚 **New to BMSSP?** See our [detailed algorithm walkthrough](ALGORITHM_WALKTHROUGH.md) with step-by-step examples and complexity analysis.
 
----
+----
 
 ## Performance Analysis
 
@@ -119,12 +101,11 @@ For practical shortest path computation, use standard implementations of Dijkstr
 ├── benchmarks/                   # Performance analysis suite
 │   ├── README.md                # Performance analysis documentation
 │   ├── performance_analysis.py  # Main benchmarking script
-│   ├── requirements.txt         # Python dependencies
+│   ├── requirements.txt         # Benchmark dependencies
 │   ├── run_benchmarks.sh        # Automated benchmark runner
 │   ├── results/                 # Generated performance data
 │   └── scripts/                 # Additional analysis tools
 ├── implementations/              # Algorithm implementations
-│   ├── python/                  # Python reference implementation
 │   ├── go/                      # Go implementation
 │   ├── c/                       # C implementation
 │   ├── rust/                    # Rust implementation
@@ -149,13 +130,6 @@ implementations/<language>/
 
 ## Running the Implementations
 
-### Python
-
-```bash
-cd implementations/python
-python bmssp.py
-```
-
 ### Go
 
 ```bash
@@ -163,21 +137,17 @@ cd implementations/go
 go run bmssp.go
 ```
 
-### Fortran
-
-```bash
-cd implementations/fortran
-gfortran bmssp.f90 -o bmssp
-./bmssp
-```
-
 ### C
 
 ```bash
 cd implementations/c
 gcc bmssp.c -lm -o bmssp
-./bmssp
+./bmssp graph.dot SOURCE [TARGET]
 ```
+
+Pass a DOT file describing a directed graph, the source vertex name, and optionally a target vertex to print a single path. When only the source is provided the utility lists the shortest paths from the source to every vertex discovered in the DOT file.
+
+> **Tip:** Try the bundled [`docs/examples/sample.dot`](docs/examples/sample.dot) graph to get started quickly.
 
 ### Rust
 
@@ -194,37 +164,37 @@ javac BMSSP.java
 java BMSSP
 ```
 
+### Fortran
+
+```bash
+cd implementations/fortran
+gfortran bmssp.f90 -o bmssp
+./bmssp
+```
+
 ---
 
 ## Testing
 
-Each implementation includes test cases that verify the algorithm's behavior on small example graphs. The tests validate:
+Automated regression tests are available for the Go, C, Fortran, and Rust ports. They validate the bounded-search structure, queue behavior, and path reconstruction utilities across small directed graphs.
 
-- Correct implementation of the recursive structure
-- Proper handling of bounds and early termination
-- Expected algorithmic behavior under the BMSSP framework
-
-Run tests using the respective language's testing framework:
+Run the suites with:
 
 ```bash
-# Python
-cd implementations/python && python -m pytest
-
-# Go  
+# Go
 cd implementations/go && go test
 
-# C
+# C (pytest harness driving the compiled binary)
 cd implementations/c && python -m pytest tests/
 
-# Fortran
+# Fortran (pytest harness driving the compiled binary)
 cd implementations/fortran && python -m pytest tests/
 
 # Rust
 cd implementations/rust && cargo test
-
-# Java
-cd implementations/java && javac BMSSPTest.java && java BMSSPTest
 ```
+
+The Java translation currently ships with example usage only; automated tests are still a todo.
 
 ---
 
