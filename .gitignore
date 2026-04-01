@@ -46,4 +46,13 @@ tmp/
 *.tmp
 
 # Rust build output
-rust/target/
+**/target/
+
+# Java compiled classes
+*.class
+
+# Compiled binaries
+implementations/c/bmssp
+implementations/c/bmssp_test_bin
+implementations/fortran/bmssp
+implementations/fortran/bmssp_test_bin

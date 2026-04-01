@@ -66,9 +66,14 @@ jobs:
           distribution: temurin
           java-version: "17"
       - name: Compile
-        run: javac BMSSP.java
-      - name: Run example
-        run: java BMSSP
+        run: javac BMSSP.java BMSSPTest.java
+      - name: Run tests
+        run: java BMSSPTest
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest
+      - run: python -m pytest tests/ -v
 
   fortran:
     name: Fortran
@@ -103,3 +108,25 @@ jobs:
         run: julia -e 'using Pkg; Pkg.activate("BMSSPAlgorithm"); Pkg.instantiate()'
       - name: Run tests
         run: julia tests/test_bmssp.jl
+
+  cross-language:
+    name: Cross-language validation
+    runs-on: ubuntu-latest
+    needs: [go, c, rust, java, fortran]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install gfortran
+        run: sudo apt-get update && sudo apt-get install -y gfortran
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run cross-language validation
+        run: python tests/cross_language_validation.py

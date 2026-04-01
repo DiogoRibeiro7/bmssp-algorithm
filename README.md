@@ -57,7 +57,7 @@ See the [algorithm walkthrough](docs/bmssp-walkthrough.md) and [parameter sensit
 | **Go** | [bmssp.go](implementations/go/bmssp.go) | `go test ./...` | `go run bmssp.go` |
 | **C** | [bmssp.c](implementations/c/bmssp.c) | `python -m pytest tests/` | `gcc bmssp.c -lm -o bmssp` |
 | **Rust** | [main.rs](implementations/rust/src/main.rs) | `cargo test` | `cargo run` |
-| **Java** | [BMSSP.java](implementations/java/BMSSP.java) | -- | `javac BMSSP.java && java BMSSP` |
+| **Java** | [BMSSP.java](implementations/java/BMSSP.java) | `javac BMSSPTest.java && java BMSSPTest` | `javac BMSSP.java && java BMSSP` |
 | **Fortran** | [bmssp.f90](implementations/fortran/bmssp.f90) | `python -m pytest tests/` | `gfortran bmssp.f90 -o bmssp` |
 | **Julia** | [BMSSPAlgorithm.jl](implementations/julia/BMSSPAlgorithm/src/BMSSPAlgorithm.jl) | `julia tests/test_bmssp.jl` | `julia src/BMSSPAlgorithm.jl` |
 

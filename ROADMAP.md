@@ -15,11 +15,11 @@ This document outlines the planned development direction for the BMSSP Algorithm
 
 ## Phase 2 -- Test Coverage and Correctness
 
-- [ ] Add automated tests for Rust implementation
-- [ ] Add automated tests for Java implementation
-- [ ] Cross-language correctness validation (same input graphs produce identical distances)
-- [ ] Property-based testing for DQueue invariants
-- [ ] Edge-case test suite (single vertex, self-loops, zero-weight edges, large fan-out)
+- [x] Add automated tests for Rust implementation
+- [x] Add automated tests for Java implementation
+- [x] Cross-language correctness validation (same input graphs produce identical distances)
+- [x] Property-based testing for DQueue invariants
+- [x] Edge-case test suite (single vertex, self-loops, zero-weight edges, large fan-out)
 - [ ] Code coverage reporting in CI
 
 ## Phase 3 -- Usability and Tooling

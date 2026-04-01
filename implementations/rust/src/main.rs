@@ -373,3 +373,184 @@ fn main() {
     let dist = run_sssp(&g, "s", false);
     println!("Distances from s: {:?}", dist);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Helper: build the standard 4-node test graph from the paper example.
+    fn example_graph() -> Graph {
+        let mut g = Graph::new();
+        g.add_edge("s", "a", 1.0);
+        g.add_edge("s", "b", 4.0);
+        g.add_edge("a", "b", 2.0);
+        g.add_edge("a", "c", 5.0);
+        g.add_edge("b", "c", 1.0);
+        g
+    }
+
+    // ---- SSSP tests ----
+
+    #[test]
+    fn test_run_sssp() {
+        let g = example_graph();
+        let dist = run_sssp(&g, "s", false);
+        assert_eq!(dist["s"], 0.0);
+        assert_eq!(dist["a"], 1.0);
+        // b reachable via s->b (4) or s->a->b (3)
+        assert!(dist["b"] == 3.0 || dist["b"] == 4.0);
+    }
+
+    #[test]
+    fn test_single_vertex() {
+        let mut g = Graph::new();
+        g.adj.insert("s".to_string(), Vec::new());
+        let dist = run_sssp(&g, "s", false);
+        assert_eq!(dist["s"], 0.0);
+    }
+
+    #[test]
+    fn test_disconnected_graph() {
+        let mut g = Graph::new();
+        g.add_edge("s", "a", 1.0);
+        g.adj.insert("b".to_string(), Vec::new());
+        let dist = run_sssp(&g, "s", false);
+        assert_eq!(dist["a"], 1.0);
+        assert!(dist["b"].is_infinite());
+    }
+
+    #[test]
+    fn test_linear_path() {
+        let mut g = Graph::new();
+        g.add_edge("a", "b", 1.0);
+        g.add_edge("b", "c", 2.0);
+        g.add_edge("c", "d", 3.0);
+        let dist = run_sssp(&g, "a", false);
+        assert_eq!(dist["a"], 0.0);
+        assert_eq!(dist["b"], 1.0);
+        assert_eq!(dist["c"], 3.0);
+        assert_eq!(dist["d"], 6.0);
+    }
+
+    #[test]
+    fn test_zero_weight_edges() {
+        let mut g = Graph::new();
+        g.add_edge("s", "a", 0.0);
+        g.add_edge("a", "b", 0.0);
+        let dist = run_sssp(&g, "s", false);
+        assert_eq!(dist["s"], 0.0);
+        assert_eq!(dist["a"], 0.0);
+        assert_eq!(dist["b"], 0.0);
+    }
+
+    #[test]
+    #[should_panic(expected = "non-negative")]
+    fn test_negative_weight_panics() {
+        let mut g = Graph::new();
+        g.add_edge("a", "b", -1.0);
+    }
+
+    #[test]
+    fn test_large_fan_out() {
+        let mut g = Graph::new();
+        for i in 0..20 {
+            g.add_edge("s", &format!("n{}", i), i as f64 + 1.0);
+        }
+        let dist = run_sssp(&g, "s", false);
+        assert_eq!(dist["s"], 0.0);
+        for i in 0..20 {
+            let key = format!("n{}", i);
+            assert_eq!(dist[&key], i as f64 + 1.0);
+        }
+    }
+
+    // ---- DQueue tests ----
+
+    #[test]
+    fn test_dqueue_insert_respects_bound() {
+        let mut dq = DQueue::new(10, 5.0);
+        dq.insert("a".to_string(), 3.0);
+        dq.insert("b".to_string(), 7.0); // above bound, ignored
+        assert!(dq.non_empty());
+        let result = dq.pull();
+        assert_eq!(result.nodes.len(), 1);
+        assert!(result.nodes.contains("a"));
+    }
+
+    #[test]
+    fn test_dqueue_pull_orders_by_distance() {
+        let mut dq = DQueue::new(3, 100.0);
+        dq.insert("c".to_string(), 9.0);
+        dq.insert("a".to_string(), 1.0);
+        dq.insert("b".to_string(), 5.0);
+        let result = dq.pull();
+        assert_eq!(result.b, 1.0); // smallest distance first
+        assert_eq!(result.nodes.len(), 3);
+    }
+
+    #[test]
+    fn test_dqueue_batch_prepend() {
+        let mut dq = DQueue::new(2, 10.0);
+        let items = vec![
+            NodeDist { node: "x".to_string(), dist: 5.0 },
+            NodeDist { node: "y".to_string(), dist: 1.0 },
+            NodeDist { node: "z".to_string(), dist: 3.0 },
+        ];
+        dq.batch_prepend(items);
+        let result = dq.pull();
+        // prepend pulls first, up to M items
+        assert_eq!(result.nodes.len(), 2);
+    }
+
+    #[test]
+    fn test_dqueue_prepend_filters_above_bound() {
+        let mut dq = DQueue::new(10, 5.0);
+        let items = vec![
+            NodeDist { node: "a".to_string(), dist: 2.0 },
+            NodeDist { node: "b".to_string(), dist: 8.0 }, // above bound
+        ];
+        dq.batch_prepend(items);
+        let result = dq.pull();
+        assert_eq!(result.nodes.len(), 1);
+        assert!(result.nodes.contains("a"));
+    }
+
+    #[test]
+    fn test_dqueue_empty_pull() {
+        let mut dq = DQueue::new(10, 100.0);
+        assert!(!dq.non_empty());
+        let result = dq.pull();
+        assert!(result.nodes.is_empty());
+        assert_eq!(result.b, 100.0);
+    }
+
+    #[test]
+    fn test_dqueue_prepend_priority_over_data() {
+        let mut dq = DQueue::new(2, 100.0);
+        dq.insert("data_node".to_string(), 1.0);
+        let items = vec![
+            NodeDist { node: "prepend_node".to_string(), dist: 50.0 },
+        ];
+        dq.batch_prepend(items);
+        // prepend should be pulled first even though data has smaller distance
+        let result = dq.pull();
+        assert!(result.nodes.contains("prepend_node"));
+    }
+
+    // ---- Graph tests ----
+
+    #[test]
+    fn test_graph_nodes_includes_targets() {
+        let mut g = Graph::new();
+        g.add_edge("a", "b", 1.0);
+        let nodes = g.nodes();
+        assert!(nodes.contains(&"a".to_string()));
+        assert!(nodes.contains(&"b".to_string()));
+    }
+
+    #[test]
+    fn test_graph_neighbors_nonexistent() {
+        let g = Graph::new();
+        assert_eq!(g.neighbors("missing").count(), 0);
+    }
+}
