@@ -1,0 +1,38 @@
+name: General Issue
+description: Ask a question, start a discussion, or report something that doesn't fit other templates
+title: "[General]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for anything that doesn't fit the bug report, feature request, or new language templates.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the project does this relate to?
+      options:
+        - Algorithm / Theory
+        - Implementation
+        - Benchmarks
+        - Visualization
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe your question, concern, or topic.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Any references, links, or screenshots that help explain.
