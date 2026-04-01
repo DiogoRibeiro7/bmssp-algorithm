@@ -1,0 +1,60 @@
+# Roadmap
+
+This document outlines the planned development direction for the BMSSP Algorithm project.
+
+## Phase 1 -- Foundation (Current)
+
+- [x] Core implementations in Go, C, Rust, Java, Fortran, Julia
+- [x] Basic test suites for Go, C, Fortran, Julia
+- [x] Benchmark suite comparing BMSSP vs Dijkstra
+- [x] Visualization tools for recursion trees and frontier evolution
+- [x] Algorithm walkthrough and parameter sensitivity documentation
+- [x] DOT file parser in C implementation
+- [x] CI pipeline for all languages
+- [x] Issue templates and Dependabot configuration
+
+## Phase 2 -- Test Coverage and Correctness
+
+- [ ] Add automated tests for Rust implementation
+- [ ] Add automated tests for Java implementation
+- [ ] Cross-language correctness validation (same input graphs produce identical distances)
+- [ ] Property-based testing for DQueue invariants
+- [ ] Edge-case test suite (single vertex, self-loops, zero-weight edges, large fan-out)
+- [ ] Code coverage reporting in CI
+
+## Phase 3 -- Usability and Tooling
+
+- [ ] DOT file input support for all implementations (not just C)
+- [ ] Unified CLI interface across languages
+- [ ] Docker images for each implementation
+- [ ] Pre-built binaries via GitHub Releases
+- [ ] Interactive web demo for small graphs
+- [ ] Add a LICENSE file (MIT)
+
+## Phase 4 -- Performance and Analysis
+
+- [ ] Automated performance regression detection in CI
+- [ ] Benchmark results tracked over time with historical comparison
+- [ ] Memory profiling for each implementation
+- [ ] Comparison against other advanced SSSP algorithms (Thorup, Pettie-Ramachandran)
+- [ ] Large-graph benchmarks (n > 10^6)
+- [ ] Platform-specific optimization notes (SIMD, cache behavior)
+
+## Phase 5 -- Community and Research
+
+- [ ] C++ implementation
+- [ ] Python implementation (with NumPy/SciPy for adjacency storage)
+- [ ] Haskell or OCaml implementation (functional perspective)
+- [ ] Integration examples with popular graph libraries (NetworkX, JGraphT, petgraph)
+- [ ] Tutorial series: "Understanding BMSSP step by step"
+- [ ] Comparison write-up: when to use BMSSP vs Dijkstra in practice
+
+## Non-Goals
+
+- Production-grade shortest-path library (this is a research reference)
+- GPU or distributed implementations (out of scope for the comparison-addition model)
+- Support for negative edge weights (the algorithm assumes non-negative weights)
+
+---
+
+Contributions toward any of these items are welcome. Open an issue to discuss before starting large changes.

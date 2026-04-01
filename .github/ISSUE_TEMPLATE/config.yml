@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Algorithm Questions
+    url: https://arxiv.org/abs/2504.17033
+    about: For questions about the BMSSP algorithm itself, refer to the original paper.

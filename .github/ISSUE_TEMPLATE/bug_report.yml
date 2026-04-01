@@ -1,0 +1,62 @@
+name: Bug Report
+description: Report incorrect behavior in an implementation
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please fill out the sections below.
+
+  - type: dropdown
+    id: language
+    attributes:
+      label: Implementation
+      description: Which language implementation is affected?
+      options:
+        - Go
+        - C
+        - Rust
+        - Java
+        - Fortran
+        - Julia
+        - Benchmarks / Visualization
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and what did you expect to happen?
+      placeholder: |
+        Expected: BMSSP returns distance 5 for vertex D
+        Actual: BMSSP returns infinity for vertex D
+    validations:
+      required: true
+
+  - type: textarea
+    id: graph
+    attributes:
+      label: Input graph
+      description: Provide the graph that triggers the bug (DOT format, adjacency list, or code snippet).
+      render: text
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, compiler/runtime version, and any relevant details.
+      placeholder: |
+        - OS: Ubuntu 24.04
+        - Go: 1.22.2
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or output
+      description: Paste any relevant output or error messages.
+      render: text

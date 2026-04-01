@@ -1,159 +1,95 @@
-# BMSSP – Breaking the Sorting Barrier for Directed SSSP (Multi-language Implementations)
+<div align="center">
 
-This repository contains **multi-language reference implementations** of the algorithms from:
+# BMSSP Algorithm
 
-> **Breaking the Sorting Barrier for Directed Single-Source Shortest Paths**  
-> [arXiv:2504.17033v2](https://arxiv.org/abs/2504.17033)  
-> Ran Duan, Jiayi Mao, Xiao Mao, Xinkai Shu, Longhui Yin, 2025
+**Multi-language reference implementations of the first deterministic algorithm to break Dijkstra's sorting barrier for directed single-source shortest paths.**
 
-**🎯 Breakthrough Result**: This paper presents the first deterministic algorithm to break Dijkstra's O(m + n log n) time bound for directed single-source shortest paths, achieving **O(m log^(2/3) n)** time complexity.
+[![CI](https://github.com/DiogoRibeiro7/bmssp-algorithm/actions/workflows/ci.yml/badge.svg)](https://github.com/DiogoRibeiro7/bmssp-algorithm/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go&logoColor=white)](#go)
+[![Rust](https://img.shields.io/badge/Rust-1.70+-DEA584?logo=rust&logoColor=white)](#rust)
+[![C](https://img.shields.io/badge/C-C11-A8B9CC?logo=c&logoColor=white)](#c)
+[![Java](https://img.shields.io/badge/Java-17+-ED8B00?logo=openjdk&logoColor=white)](#java)
+[![Fortran](https://img.shields.io/badge/Fortran-2008-734F96)](#fortran)
+[![Julia](https://img.shields.io/badge/Julia-1.9+-9558B2?logo=julia&logoColor=white)](#julia)
 
-Currently implemented in:
+[Paper](https://arxiv.org/abs/2504.17033) | [Algorithm Walkthrough](docs/bmssp-walkthrough.md) | [Benchmarks](benchmarks/README.md) | [Visualization](vizualization/README.md)
 
- - ✅ Go
- - ✅ Fortran
- - ✅ C
- - ✅ Rust
- - ✅ Java
-
----
-
-📚 **New to BMSSP?** See our [detailed algorithm walkthrough](ALGORITHM_WALKTHROUGH.md) with step-by-step examples and complexity analysis.
-
-----
-
-## Performance Analysis
-
-🔬 **Want to see when BMSSP outperforms Dijkstra?** 
-
-Our comprehensive benchmark suite analyzes:
-
-- **Runtime crossover points** for different graph types and sizes
-- **Memory usage comparisons** showing BMSSP's efficiency gains  
-- **Theoretical vs empirical complexity** validation with real data
-- **Graph type sensitivity** (sparse, scale-free, grid, small-world networks)
-
-### Quick Start
-
-```bash
-cd benchmarks
-pip install -r requirements.txt
-python performance_analysis.py
-```
-
-This generates:
-
-- `PERFORMANCE_REPORT.md` - Detailed analysis with crossover points
-- `performance_analysis.png` - Comprehensive comparison plots
-- Console output with key findings and recommendations
-
-### Expected Results
-
-| Graph Type | Crossover Point | Max Improvement | Memory Reduction |
-|------------|----------------|-----------------|------------------|
-| Sparse Random | n ≈ 200-500 | ~60% faster | ~20% |
-| Scale-Free | n ≈ 100-300 | ~70% faster | ~25% |
-| Small-World | n ≈ 300-600 | ~50% faster | ~15% |
-| Grid | n ≈ 400-800 | ~40% faster | ~10% |
-
-📚 See [`benchmarks/README.md`](benchmarks/README.md) for detailed performance analysis documentation.
+</div>
 
 ---
 
-## Algorithm Overview
+## Overview
 
-The BMSSP (Bounded Multi-Source Shortest Path) algorithm uses a novel recursive partitioning technique that merges ideas from both Dijkstra's algorithm and the Bellman-Ford algorithm:
+This repository implements the algorithms from:
 
-### Core Innovation
+> **Breaking the Sorting Barrier for Directed Single-Source Shortest Paths**
+> Ran Duan, Jiayi Mao, Xiao Mao, Xinkai Shu, Longhui Yin (2025)
+> [arXiv:2504.17033v2](https://arxiv.org/abs/2504.17033)
 
-- **Frontier Reduction**: Instead of maintaining a frontier of size Θ(n), the algorithm reduces it to |U|/log^Ω(1)(n)
-- **Pivot Selection**: Uses bounded Bellman-Ford expansion to identify "pivot" vertices that cover large subtrees
-- **Recursive Structure**: Employs O(log n / t) levels of recursion with specialized data structures
+The BMSSP algorithm achieves **O(m log<sup>2/3</sup> n)** deterministic time for directed SSSP in the comparison-addition model, breaking Dijkstra's long-standing **O(m + n log n)** barrier. It proves that while Dijkstra's approach is optimal when vertex ordering is required, it is not optimal for computing distances alone.
 
-### Key Components
+> **Note**: These are research implementations optimized for algorithmic clarity, not production use. For practical shortest-path computation, use standard Dijkstra or A* implementations.
 
-1. **FindPivots** (Lemma 3.2) – Bounded Bellman-Ford expansion with pivot selection
-2. **BaseCase** – Small-instance solver using Dijkstra-like approach  
-3. **BMSSP** – Main recursive bounded multi-source shortest path solver
-4. **DQueue** – Specialized data structure supporting bounded batch operations
+## How It Works
 
----
+BMSSP combines ideas from Dijkstra's algorithm and Bellman-Ford through a recursive partitioning strategy:
 
-## Important Notes
+| Component | Role | Reference |
+|-----------|------|-----------|
+| **FindPivots** | Bounded Bellman-Ford expansion to identify pivot vertices covering large subtrees | Lemma 3.2 |
+| **BaseCase** | Small-instance solver using a Dijkstra-like approach | Section 3 |
+| **BMSSP** | Main recursive bounded multi-source shortest path solver | Algorithm 3 |
+| **DQueue** | Specialized queue supporting bounded batch pull and prepend operations | Lemma 3.3 |
 
-⚠️ **These are research algorithm implementations**, not general-purpose shortest path solvers:
+**Key parameters** (derived from graph size _n_):
 
-- **Theoretical Focus**: Optimized for asymptotic complexity O(m log^(2/3) n), not practical performance on small graphs
-- **Bounded Computation**: May not compute complete shortest path trees due to algorithmic bounds and early termination conditions
-- **Parameter Sensitivity**: Uses specific parameters k = ⌊log^(1/3) n⌋ and t = ⌊log^(2/3) n⌋ derived from theoretical analysis
-- **Research Code**: Prioritizes algorithmic clarity over production optimizations
+- `k = floor(log^(1/3) n)` -- controls pivot selection and base case size
+- `t = floor(log^(2/3) n)` -- recursion branching factor
+- `l = ceil(log n / t)` -- number of recursion levels
 
-For practical shortest path computation, use standard implementations of Dijkstra's algorithm or other established methods.
+See the [algorithm walkthrough](docs/bmssp-walkthrough.md) and [parameter sensitivity analysis](docs/PARAMETER_SENSITIVITY.md) for details.
 
----
+## Implementations
 
-## Repository Structure
+| Language | Source | Tests | Build |
+|----------|--------|-------|-------|
+| **Go** | [bmssp.go](implementations/go/bmssp.go) | `go test ./...` | `go run bmssp.go` |
+| **C** | [bmssp.c](implementations/c/bmssp.c) | `python -m pytest tests/` | `gcc bmssp.c -lm -o bmssp` |
+| **Rust** | [main.rs](implementations/rust/src/main.rs) | `cargo test` | `cargo run` |
+| **Java** | [BMSSP.java](implementations/java/BMSSP.java) | -- | `javac BMSSP.java && java BMSSP` |
+| **Fortran** | [bmssp.f90](implementations/fortran/bmssp.f90) | `python -m pytest tests/` | `gfortran bmssp.f90 -o bmssp` |
+| **Julia** | [BMSSPAlgorithm.jl](implementations/julia/BMSSPAlgorithm/src/BMSSPAlgorithm.jl) | `julia tests/test_bmssp.jl` | `julia src/BMSSPAlgorithm.jl` |
 
-```
-/
-├── README.md                     # This file
-├── ALGORITHM_WALKTHROUGH.md      # Detailed algorithm explanation
-├── benchmarks/                   # Performance analysis suite
-│   ├── README.md                # Performance analysis documentation
-│   ├── performance_analysis.py  # Main benchmarking script
-│   ├── requirements.txt         # Benchmark dependencies
-│   ├── run_benchmarks.sh        # Automated benchmark runner
-│   ├── results/                 # Generated performance data
-│   └── scripts/                 # Additional analysis tools
-├── implementations/              # Algorithm implementations
-│   ├── go/                      # Go implementation
-│   ├── c/                       # C implementation
-│   ├── rust/                    # Rust implementation
-│   ├── java/                    # Java implementation
-│   └── fortran/                 # Fortran implementation
-├── docs/                        # Additional documentation
-│   ├── paper/                   # Research paper reference
-│   └── examples/                # Educational examples
-└── .gitignore                   # Git ignore rules
-```
+Each implementation lives under `implementations/<language>/` with its own README, source, and test directory.
 
-Each language implementation includes:
-```
-implementations/<language>/
-├── bmssp.<ext>          # Main algorithm implementation
-├── tests/               # Correctness verification
-├── README.md           # Language-specific instructions
-└── ...                 # Build files (Makefile, package files, etc.)
-```
-
----
-
-## Running the Implementations
+## Quick Start
 
 ### Go
 
 ```bash
 cd implementations/go
 go run bmssp.go
+go test ./...
 ```
 
 ### C
 
+The C implementation accepts [DOT files](docs/examples/README.md) from the command line:
+
 ```bash
 cd implementations/c
 gcc bmssp.c -lm -o bmssp
-./bmssp graph.dot SOURCE [TARGET]
+./bmssp ../docs/examples/sample.dot A       # all shortest paths from A
+./bmssp ../docs/examples/sample.dot A H     # shortest path from A to H
 ```
-
-Pass a DOT file describing a directed graph, the source vertex name, and optionally a target vertex to print a single path. When only the source is provided the utility lists the shortest paths from the source to every vertex discovered in the DOT file.
-
-> **Tip:** Try the bundled [`docs/examples/sample.dot`](docs/examples/sample.dot) graph to get started quickly.
 
 ### Rust
 
 ```bash
 cd implementations/rust
 cargo run
+cargo test
 ```
 
 ### Java
@@ -172,84 +108,100 @@ gfortran bmssp.f90 -o bmssp
 ./bmssp
 ```
 
----
-
-## Testing
-
-Automated regression tests are available for the Go, C, Fortran, and Rust ports. They validate the bounded-search structure, queue behavior, and path reconstruction utilities across small directed graphs.
-
-Run the suites with:
+### Julia
 
 ```bash
-# Go
-cd implementations/go && go test
-
-# C (pytest harness driving the compiled binary)
-cd implementations/c && python -m pytest tests/
-
-# Fortran (pytest harness driving the compiled binary)
-cd implementations/fortran && python -m pytest tests/
-
-# Rust
-cd implementations/rust && cargo test
+cd implementations/julia
+julia BMSSPAlgorithm/src/BMSSPAlgorithm.jl
+julia tests/test_bmssp.jl
 ```
 
-The Java translation currently ships with example usage only; automated tests are still a todo.
+## Benchmarks
 
----
+The benchmark suite compares BMSSP against Dijkstra across different graph topologies and sizes.
+
+```bash
+cd benchmarks
+pip install -r requirements.txt
+python performance_comparison.py
+```
+
+| Graph Type | Crossover Point | Max Improvement | Memory Reduction |
+|------------|----------------|-----------------|------------------|
+| Sparse Random | n ~ 200--500 | ~60% faster | ~20% |
+| Scale-Free | n ~ 100--300 | ~70% faster | ~25% |
+| Small-World | n ~ 300--600 | ~50% faster | ~15% |
+| Grid | n ~ 400--800 | ~40% faster | ~10% |
+
+See [benchmarks/README.md](benchmarks/README.md) for methodology and interpretation.
+
+## Visualization
+
+Interactive and static visualizations of recursion trees, frontier evolution, and pivot selection:
+
+```bash
+cd vizualization
+pip install -r requirements.txt
+python bmssp_visualization.py
+```
+
+See [vizualization/README.md](vizualization/README.md) for all available tools and scripts.
+
+## Repository Structure
+
+```
+bmssp-algorithm/
+├── implementations/
+│   ├── go/            # Go implementation + tests
+│   ├── c/             # C implementation with DOT parser + tests
+│   ├── rust/          # Rust implementation
+│   ├── java/          # Java implementation
+│   ├── fortran/       # Fortran implementation + tests
+│   └── julia/         # Julia implementation + tests
+├── docs/
+│   ├── bmssp-walkthrough.md        # Step-by-step algorithm guide
+│   ├── PARAMETER_SENSITIVITY.md    # Parameter analysis
+│   └── examples/                   # DOT file examples
+├── benchmarks/                     # Performance comparison suite
+├── vizualization/                  # Visualization tools
+├── paper/                          # Reference paper
+└── .github/
+    ├── workflows/                  # CI/CD pipelines
+    ├── ISSUE_TEMPLATE/             # Issue templates
+    └── dependabot.yml              # Dependency updates
+```
 
 ## Technical Details
 
-### Time Complexity
+**Time complexity**: O(m log<sup>2/3</sup> n) deterministic, in the comparison-addition model with real non-negative edge weights.
 
-- **Main Result**: O(m log^(2/3) n) deterministic time
-- **Comparison**: Breaks Dijkstra's O(m + n log n) barrier on sparse graphs
-- **Model**: Comparison-addition model with real non-negative edge weights
+**Graph preprocessing**: All implementations assume constant-degree graphs. For general graphs, a standard vertex-splitting transformation achieves constant in/out-degree while preserving shortest paths.
 
-### Key Parameters
-
-- `k = ⌊log^(1/3) n⌋` - Controls pivot selection and base case size
-- `t = ⌊log^(2/3) n⌋` - Determines recursion branching factor  
-- `l = ⌈log n / t⌉` - Number of recursion levels
-
-### Graph Preprocessing
-
-All implementations assume constant-degree graphs. For general graphs, the algorithm applies a standard vertex-splitting transformation to achieve constant in-degree and out-degree while preserving shortest paths.
-
----
-
-## Research Context
-
-This work represents a significant theoretical breakthrough in graph algorithms:
-
-- **First** to break the sorting barrier for directed SSSP in the comparison-addition model
-- **Deterministic** improvement over previous randomized results
-- **Novel techniques** combining Dijkstra and Bellman-Ford through recursive partitioning
-
-The algorithm demonstrates that Dijkstra's approach, while optimal when vertex ordering is required, is not optimal for computing distances alone.
-
----
+**Limitations**:
+- May not compute complete shortest-path trees due to bounded termination conditions
+- Parameter-sensitive: uses theoretically-derived values of _k_ and _t_
+- Outperforms Dijkstra only beyond a crossover point (typically n > 100--500)
 
 ## Citation
 
 ```bibtex
 @article{duan2025breaking,
-  title={Breaking the Sorting Barrier for Directed Single-Source Shortest Paths},
-  author={Duan, Ran and Mao, Jiayi and Mao, Xiao and Shu, Xinkai and Yin, Longhui},
-  journal={arXiv preprint arXiv:2504.17033},
-  year={2025}
+  title   = {Breaking the Sorting Barrier for Directed Single-Source Shortest Paths},
+  author  = {Duan, Ran and Mao, Jiayi and Mao, Xiao and Shu, Xinkai and Yin, Longhui},
+  journal = {arXiv preprint arXiv:2504.17033},
+  year    = {2025}
 }
 ```
 
----
-
 ## Contributing
 
-When contributing to this repository:
+1. **Algorithmic fidelity** -- preserve the theoretical structure from the paper
+2. **Paper notation** -- use variable names consistent with the research
+3. **Test coverage** -- validate BMSSP-specific behavior, not just standard SSSP
+4. **Documentation** -- explain implementation-specific choices
 
-1. **Maintain algorithmic fidelity** - Preserve the theoretical structure of BMSSP
-2. **Follow paper notation** - Use variable names and structure consistent with the research paper
-3. **Test carefully** - Ensure implementations match expected BMSSP behavior, not standard SSSP
-4. **Document clearly** - Explain any implementation-specific choices or optimizations
+See [issue templates](.github/ISSUE_TEMPLATE/) for bug reports, feature requests, and new language proposals.
 
-For questions about the algorithm itself, refer to the original research paper.
+## License
+
+This project is licensed under the [MIT License](LICENSE).

@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: Go
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: implementations/go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - run: go vet ./...
+      - run: go test -v -race ./...
+
+  c:
+    name: C
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: implementations/c
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile
+        run: gcc -Wall -Wextra -std=c11 bmssp.c -lm -o bmssp
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest
+      - run: python -m pytest tests/ -v
+
+  rust:
+    name: Rust
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: implementations/rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --verbose
+      - run: cargo test --verbose
+      - run: cargo clippy -- -D warnings
+
+  java:
+    name: Java
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: implementations/java
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Compile
+        run: javac BMSSP.java
+      - name: Run example
+        run: java BMSSP
+
+  fortran:
+    name: Fortran
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: implementations/fortran
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install gfortran
+        run: sudo apt-get update && sudo apt-get install -y gfortran
+      - name: Compile
+        run: gfortran -Wall -Wextra -std=f2008 bmssp.f90 -o bmssp
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest
+      - run: python -m pytest tests/ -v
+
+  julia:
+    name: Julia
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: implementations/julia
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1.9"
+      - name: Install dependencies
+        run: julia -e 'using Pkg; Pkg.activate("BMSSPAlgorithm"); Pkg.instantiate()'
+      - name: Run tests
+        run: julia tests/test_bmssp.jl

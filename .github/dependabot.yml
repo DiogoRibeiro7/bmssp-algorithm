@@ -1,0 +1,52 @@
+version: 2
+updates:
+  # Go modules
+  - package-ecosystem: gomod
+    directory: /implementations/go
+    schedule:
+      interval: weekly
+    labels:
+      - enhancement
+    commit-message:
+      prefix: "deps(go):"
+
+  # Rust crates
+  - package-ecosystem: cargo
+    directory: /implementations/rust
+    schedule:
+      interval: weekly
+    labels:
+      - enhancement
+    commit-message:
+      prefix: "deps(rust):"
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - enhancement
+    commit-message:
+      prefix: "deps(actions):"
+
+  # Python (benchmarks)
+  - package-ecosystem: pip
+    directory: /benchmarks
+    schedule:
+      interval: monthly
+    labels:
+      - enhancement
+      - performance
+    commit-message:
+      prefix: "deps(benchmarks):"
+
+  # Python (visualization)
+  - package-ecosystem: pip
+    directory: /vizualization
+    schedule:
+      interval: monthly
+    labels:
+      - enhancement
+    commit-message:
+      prefix: "deps(viz):"
