@@ -269,7 +269,7 @@ fn bmssp(
         return BMSSPResult { b: bc.b, u: bc.u };
     }
     let piv = find_pivots(graph, b, s, d_hat, complete, k, verbose);
-    let mut p = piv.p;
+    let p = piv.p;
     let w = piv.w;
     if verbose {
         println!("bmssp: pivots={:?}", p);
@@ -337,7 +337,7 @@ fn bmssp(
         };
         println!("bmssp: terminating loop due to {}", reason);
     }
-    let mut b_prime = b0_prime.min(b);
+    let b_prime = b0_prime.min(b);
     for x in &w {
         if d_hat.get(x).cloned().unwrap_or(f64::INFINITY) < b_prime {
             u.insert(x.clone());
@@ -353,13 +353,25 @@ fn bmssp(
 fn run_sssp(g: &Graph, source: &str, verbose: bool) -> HashMap<String, f64> {
     let n = g.nodes().len();
     let k = n;
+    let t = 1;
+    let l = 1;
     let mut d_hat: HashMap<String, f64> =
         g.nodes().into_iter().map(|v| (v, f64::INFINITY)).collect();
     d_hat.insert(source.to_string(), 0.0);
     let mut complete: HashSet<String> = HashSet::new();
     complete.insert(source.to_string());
     let s: HashSet<String> = [source.to_string()].iter().cloned().collect();
-    base_case(g, f64::INFINITY, &s, &mut d_hat, &mut complete, k, verbose);
+    bmssp(
+        g,
+        l,
+        f64::INFINITY,
+        &s,
+        &mut d_hat,
+        &mut complete,
+        k,
+        t,
+        verbose,
+    );
     d_hat
 }
 
@@ -492,9 +504,18 @@ mod tests {
     fn test_dqueue_batch_prepend() {
         let mut dq = DQueue::new(2, 10.0);
         let items = vec![
-            NodeDist { node: "x".to_string(), dist: 5.0 },
-            NodeDist { node: "y".to_string(), dist: 1.0 },
-            NodeDist { node: "z".to_string(), dist: 3.0 },
+            NodeDist {
+                node: "x".to_string(),
+                dist: 5.0,
+            },
+            NodeDist {
+                node: "y".to_string(),
+                dist: 1.0,
+            },
+            NodeDist {
+                node: "z".to_string(),
+                dist: 3.0,
+            },
         ];
         dq.batch_prepend(items);
         let result = dq.pull();
@@ -506,8 +527,14 @@ mod tests {
     fn test_dqueue_prepend_filters_above_bound() {
         let mut dq = DQueue::new(10, 5.0);
         let items = vec![
-            NodeDist { node: "a".to_string(), dist: 2.0 },
-            NodeDist { node: "b".to_string(), dist: 8.0 }, // above bound
+            NodeDist {
+                node: "a".to_string(),
+                dist: 2.0,
+            },
+            NodeDist {
+                node: "b".to_string(),
+                dist: 8.0,
+            }, // above bound
         ];
         dq.batch_prepend(items);
         let result = dq.pull();
@@ -528,9 +555,10 @@ mod tests {
     fn test_dqueue_prepend_priority_over_data() {
         let mut dq = DQueue::new(2, 100.0);
         dq.insert("data_node".to_string(), 1.0);
-        let items = vec![
-            NodeDist { node: "prepend_node".to_string(), dist: 50.0 },
-        ];
+        let items = vec![NodeDist {
+            node: "prepend_node".to_string(),
+            dist: 50.0,
+        }];
         dq.batch_prepend(items);
         // prepend should be pulled first even though data has smaller distance
         let result = dq.pull();

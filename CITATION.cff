@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+title: "BMSSP Algorithm — Multi-language Reference Implementations"
+message: "If you use this software, please cite both this repository and the original paper."
+type: software
+authors:
+  - family-names: Ribeiro
+    given-names: Diogo
+repository-code: "https://github.com/DiogoRibeiro7/bmssp-algorithm"
+license: MIT
+references:
+  - type: article
+    title: "Breaking the Sorting Barrier for Directed Single-Source Shortest Paths"
+    authors:
+      - family-names: Duan
+        given-names: Ran
+      - family-names: Mao
+        given-names: Jiayi
+      - family-names: Mao
+        given-names: Xiao
+      - family-names: Shu
+        given-names: Xinkai
+      - family-names: Yin
+        given-names: Longhui
+    year: 2025
+    journal: "arXiv preprint arXiv:2504.17033"
+    url: "https://arxiv.org/abs/2504.17033"

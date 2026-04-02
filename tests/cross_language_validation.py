@@ -69,6 +69,15 @@ def run_fortran():
     return _parse_fortran_output(out)
 
 
+def run_julia():
+    """Run Julia implementation."""
+    d = IMPL / "julia"
+    out = subprocess.check_output(
+        ["julia", "BMSSPAlgorithm/src/BMSSPAlgorithm.jl"], cwd=d, text=True
+    )
+    return _parse_julia_output(out)
+
+
 # ---- Output parsers ----
 
 def _parse_map(out: str) -> dict[str, float]:
@@ -129,6 +138,23 @@ def _parse_fortran_output(out: str) -> dict[str, float]:
     return result
 
 
+def _parse_julia_output(out: str) -> dict[str, float]:
+    """Parse Julia output like  '  a: 1.0' or '  c: ∞'."""
+    result = {}
+    for line in out.strip().splitlines():
+        line = line.strip()
+        if ":" not in line or line.startswith("Distances"):
+            continue
+        k, v = line.split(":", 1)
+        k = k.strip()
+        v = v.strip()
+        if v == "∞":
+            result[k] = math.inf
+        else:
+            result[k] = _to_float(v)
+    return result
+
+
 def _to_float(s: str) -> float:
     s = s.strip().lower()
     if s in ("inf", "+inf", "infinity", "+infinity"):
@@ -165,6 +191,7 @@ def main():
         "Rust": run_rust,
         "Java": run_java,
         "Fortran": run_fortran,
+        "Julia": run_julia,
     }
 
     results = {}

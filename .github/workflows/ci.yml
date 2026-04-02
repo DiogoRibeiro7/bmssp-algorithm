@@ -21,7 +21,11 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.21"
+          cache-dependency-path: implementations/go/go.sum
       - run: go vet ./...
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          working-directory: implementations/go
       - run: go test -v -race -coverprofile=coverage.out ./...
       - name: Report coverage
         run: go tool cover -func=coverage.out
@@ -56,6 +60,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: implementations/rust
+      - run: cargo fmt --check
       - run: cargo build --verbose
       - run: cargo test --verbose
       - run: cargo clippy -- -D warnings
@@ -120,27 +130,40 @@ jobs:
       - uses: julia-actions/setup-julia@v2
         with:
           version: "1.9"
+      - uses: julia-actions/cache@v2
       - name: Install dependencies
-        run: julia -e 'using Pkg; Pkg.activate("BMSSPAlgorithm"); Pkg.instantiate()'
+        run: julia -e 'using Pkg; Pkg.activate("BMSSPAlgorithm"); Pkg.instantiate(); Pkg.add("JuliaFormatter")'
+      - name: Check formatting
+        run: |
+          julia -e 'using JuliaFormatter; exit(format("BMSSPAlgorithm/src", overwrite=false) ? 0 : 1)'
       - name: Run tests
         run: julia tests/test_bmssp.jl
 
   cross-language:
     name: Cross-language validation
     runs-on: ubuntu-latest
-    needs: [go, c, rust, java, fortran]
+    needs: [go, c, rust, java, fortran, julia]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: "1.21"
+          cache-dependency-path: implementations/go/go.sum
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: implementations/rust
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
       - name: Install gfortran
         run: sudo apt-get update && sudo apt-get install -y gfortran
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1.9"
+      - name: Install Julia dependencies
+        run: julia -e 'using Pkg; Pkg.activate("implementations/julia/BMSSPAlgorithm"); Pkg.instantiate()'
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
