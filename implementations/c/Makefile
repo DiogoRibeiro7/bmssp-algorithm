@@ -2,8 +2,9 @@ CC      = gcc
 CFLAGS  = -Wall -Wextra -std=c11
 LDFLAGS = -lm
 TARGET  = bmssp
+BENCH   = benchmark
 
-.PHONY: all release debug test clean
+.PHONY: all release debug test bench clean
 
 all: release
 
@@ -17,8 +18,14 @@ debug: $(TARGET)
 $(TARGET): bmssp.c
 	$(CC) $(CFLAGS) $< $(LDFLAGS) -o $@
 
+$(BENCH): benchmark.c bmssp.c
+	$(CC) $(CFLAGS) -O2 benchmark.c $(LDFLAGS) -o $@
+
+bench: $(BENCH)
+	./$(BENCH) > benchmark_results.csv
+
 test: release
 	python -m pytest tests/ -v
 
 clean:
-	rm -f $(TARGET)
+	rm -f $(TARGET) $(BENCH) benchmark_results.csv

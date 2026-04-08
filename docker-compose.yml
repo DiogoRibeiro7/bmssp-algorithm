@@ -1,0 +1,30 @@
+services:
+  go:
+    build:
+      context: ./implementations/go
+    image: bmssp-go:latest
+
+  c:
+    build:
+      context: ./implementations/c
+    image: bmssp-c:latest
+
+  rust:
+    build:
+      context: ./implementations/rust
+    image: bmssp-rust:latest
+
+  java:
+    build:
+      context: ./implementations/java
+    image: bmssp-java:latest
+
+  fortran:
+    build:
+      context: ./implementations/fortran
+    image: bmssp-fortran:latest
+
+  julia:
+    build:
+      context: ./implementations/julia
+    image: bmssp-julia:latest

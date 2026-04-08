@@ -1,0 +1,45 @@
+name: Docker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "implementations/**/Dockerfile"
+      - "implementations/**/*.go"
+      - "implementations/**/*.c"
+      - "implementations/**/*.rs"
+      - "implementations/**/*.java"
+      - "implementations/**/*.f90"
+      - "implementations/**/*.jl"
+      - "docker-compose.yml"
+      - ".github/workflows/docker.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "implementations/**/Dockerfile"
+      - "docker-compose.yml"
+      - ".github/workflows/docker.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.language }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [go, c, rust, java, fortran, julia]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: implementations/${{ matrix.language }}
+          tags: bmssp-${{ matrix.language }}:ci
+          push: false
+          load: true
+          cache-from: type=gha,scope=${{ matrix.language }}
+          cache-to: type=gha,scope=${{ matrix.language }},mode=max

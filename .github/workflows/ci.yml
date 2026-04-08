@@ -43,6 +43,14 @@ jobs:
         working-directory: implementations/c
     steps:
       - uses: actions/checkout@v4
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y clang-format cppcheck
+      - name: clang-format check
+        run: clang-format --dry-run --Werror bmssp.c
+        continue-on-error: true
+      - name: cppcheck
+        run: cppcheck --enable=warning --suppress=missingIncludeSystem --error-exitcode=1 bmssp.c
+        continue-on-error: true
       - name: Compile
         run: gcc -Wall -Wextra -std=c11 bmssp.c -lm -o bmssp
       - uses: actions/setup-python@v5
