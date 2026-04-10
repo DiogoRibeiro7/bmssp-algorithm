@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BMSSP Algorithm — Interactive Demo</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+  min-height: 100vh;
+}
+
+header {
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+header h1 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+header span {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.container {
+  display: grid;
+  grid-template-columns: 280px 1fr 280px;
+  height: calc(100vh - 57px);
+}
+
+/* Left panel */
+.panel {
+  background: #1e293b;
+  border-right: 1px solid #334155;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.panel-right {
+  border-right: none;
+  border-left: 1px solid #334155;
+}
+
+.panel h2 {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  margin-bottom: 12px;
+}
+
+.panel h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: #cbd5e1;
+  margin: 16px 0 8px;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  background: #334155;
+  color: #e2e8f0;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn:hover { background: #475569; }
+.btn-primary { background: #2563eb; border-color: #3b82f6; }
+.btn-primary:hover { background: #1d4ed8; }
+.btn-danger { background: #dc2626; border-color: #ef4444; }
+.btn-danger:hover { background: #b91c1c; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+
+.btn-group { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+
+/* Form elements */
+label {
+  display: block;
+  font-size: 12px;
+  color: #94a3b8;
+  margin-bottom: 4px;
+}
+
+input, select, textarea {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.field { margin-bottom: 10px; }
+
+/* Canvas area */
+.canvas-wrap {
+  position: relative;
+  overflow: hidden;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.canvas-hint {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(30, 41, 59, 0.9);
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+/* Results table */
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.results-table th, .results-table td {
+  padding: 5px 8px;
+  text-align: left;
+  border-bottom: 1px solid #334155;
+}
+
+.results-table th {
+  color: #94a3b8;
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.results-table tr.active { background: rgba(37, 99, 235, 0.2); }
+
+/* Speed control */
+.speed-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.speed-control input[type="range"] {
+  flex: 1;
+  padding: 0;
+}
+
+/* Presets */
+.preset-list { display: flex; flex-direction: column; gap: 4px; }
+.preset-item {
+  padding: 8px 10px;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.15s;
+}
+.preset-item:hover { background: #334155; }
+.preset-item strong { color: #e2e8f0; }
+.preset-item span { color: #64748b; }
+
+/* DOT input */
+textarea {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* Legend */
+.legend { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.legend-dot {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Step info */
+.step-info {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 8px;
+  min-height: 60px;
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>BMSSP Interactive Demo</h1>
+  <span>Breaking the Sorting Barrier for Directed Single-Source Shortest Paths</span>
+</header>
+
+<div class="container">
+  <!-- Left panel: controls -->
+  <div class="panel">
+    <h2>Graph</h2>
+    <div class="btn-group">
+      <button class="btn btn-sm" onclick="setMode('add-node')" id="btn-add-node">+ Node</button>
+      <button class="btn btn-sm" onclick="setMode('add-edge')" id="btn-add-edge">+ Edge</button>
+      <button class="btn btn-sm" onclick="setMode('move')" id="btn-move">Move</button>
+      <button class="btn btn-sm btn-danger" onclick="setMode('delete')" id="btn-delete">Delete</button>
+    </div>
+
+    <div class="field">
+      <label>Source vertex</label>
+      <select id="source-select"><option value="">-- select --</option></select>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="runAlgorithm()">Run BMSSP</button>
+      <button class="btn" onclick="runDijkstra()">Run Dijkstra</button>
+      <button class="btn btn-danger" onclick="clearGraph()">Clear</button>
+    </div>
+
+    <h3>Animation</h3>
+    <div class="btn-group">
+      <button class="btn btn-sm" onclick="stepBack()" id="btn-prev">Prev</button>
+      <button class="btn btn-sm" onclick="togglePlay()" id="btn-play">Play</button>
+      <button class="btn btn-sm" onclick="stepForward()" id="btn-next">Next</button>
+      <button class="btn btn-sm" onclick="goToEnd()">End</button>
+    </div>
+    <div class="speed-control">
+      <label style="margin:0;white-space:nowrap">Speed</label>
+      <input type="range" id="speed" min="1" max="10" value="5">
+    </div>
+
+    <div class="step-info" id="step-info">
+      Load a preset or build a graph, then run an algorithm to see step-by-step execution.
+    </div>
+
+    <h3>Presets</h3>
+    <div class="preset-list">
+      <div class="preset-item" onclick="loadPreset('simple')">
+        <strong>Simple</strong> <span>— 5 nodes, basic paths</span>
+      </div>
+      <div class="preset-item" onclick="loadPreset('diamond')">
+        <strong>Diamond</strong> <span>— 6 nodes, competing paths</span>
+      </div>
+      <div class="preset-item" onclick="loadPreset('sample')">
+        <strong>Sample DOT</strong> <span>— 8 nodes from docs</span>
+      </div>
+      <div class="preset-item" onclick="loadPreset('grid')">
+        <strong>Grid</strong> <span>— 3x3 grid graph</span>
+      </div>
+    </div>
+
+    <h3>Import DOT</h3>
+    <textarea id="dot-input" placeholder="digraph G {&#10;  A -> B [label=3];&#10;  B -> C [label=1];&#10;}"></textarea>
+    <div class="btn-group" style="margin-top:6px">
+      <button class="btn btn-sm" onclick="importDOT()">Import</button>
+      <button class="btn btn-sm" onclick="exportDOT()">Export</button>
+    </div>
+  </div>
+
+  <!-- Canvas -->
+  <div class="canvas-wrap">
+    <canvas id="canvas"></canvas>
+    <div class="canvas-hint" id="canvas-hint">Click to add a node, or load a preset</div>
+  </div>
+
+  <!-- Right panel: results -->
+  <div class="panel panel-right">
+    <h2>Results</h2>
+    <table class="results-table" id="results-table">
+      <thead><tr><th>Vertex</th><th>Distance</th></tr></thead>
+      <tbody id="results-body"></tbody>
+    </table>
+
+    <h3>Legend</h3>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#94a3b8"></div> Unvisited</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#facc15"></div> In queue / frontier</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div> Finalized</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div> Source</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div> Current step</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ Graph data model ============
+const nodes = [];   // {id, name, x, y}
+const edges = [];   // {from, to, weight}
+let nextId = 0;
+let nextName = 65;  // 'A'
+
+// ============ UI state ============
+let mode = 'add-node';
+let edgeStart = null;
+let dragging = null;
+let dragOffX = 0, dragOffY = 0;
+
+// Algorithm state
+let steps = [];
+let stepIdx = -1;
+let playing = false;
+let playTimer = null;
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  const wrap = canvas.parentElement;
+  canvas.width = wrap.clientWidth * devicePixelRatio;
+  canvas.height = wrap.clientHeight * devicePixelRatio;
+  canvas.style.width = wrap.clientWidth + 'px';
+  canvas.style.height = wrap.clientHeight + 'px';
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  draw();
+}
+window.addEventListener('resize', resize);
+
+// ============ Drawing ============
+const NODE_R = 22;
+const COLORS = {
+  unvisited: '#64748b',
+  frontier: '#facc15',
+  finalized: '#22c55e',
+  source: '#3b82f6',
+  current: '#ef4444',
+  edge: '#475569',
+  edgeRelaxed: '#22c55e',
+  edgeActive: '#ef4444',
+};
+
+function getNodeState(nodeId) {
+  if (stepIdx < 0 || !steps.length) return 'unvisited';
+  const s = steps[stepIdx];
+  if (s.current && s.current.has(nodeId)) return 'current';
+  if (s.source === nodeId) return 'source';
+  if (s.finalized && s.finalized.has(nodeId)) return 'finalized';
+  if (s.frontier && s.frontier.has(nodeId)) return 'frontier';
+  return 'unvisited';
+}
+
+function getEdgeState(from, to) {
+  if (stepIdx < 0 || !steps.length) return 'default';
+  const s = steps[stepIdx];
+  if (s.activeEdge && s.activeEdge.from === from && s.activeEdge.to === to) return 'active';
+  if (s.relaxedEdges && s.relaxedEdges.some(e => e.from === from && e.to === to)) return 'relaxed';
+  return 'default';
+}
+
+function draw() {
+  const w = canvas.width / devicePixelRatio;
+  const h = canvas.height / devicePixelRatio;
+  ctx.clearRect(0, 0, w, h);
+
+  // Draw edges
+  for (const e of edges) {
+    const from = nodes.find(n => n.id === e.from);
+    const to = nodes.find(n => n.id === e.to);
+    if (!from || !to) continue;
+    const estate = getEdgeState(e.from, e.to);
+
+    ctx.beginPath();
+    const dx = to.x - from.x, dy = to.y - from.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < 1) continue;
+    const ux = dx/dist, uy = dy/dist;
+    const sx = from.x + ux * NODE_R, sy = from.y + uy * NODE_R;
+    const ex = to.x - ux * (NODE_R + 8), ey = to.y - uy * (NODE_R + 8);
+
+    ctx.strokeStyle = estate === 'active' ? COLORS.edgeActive :
+                      estate === 'relaxed' ? COLORS.edgeRelaxed : COLORS.edge;
+    ctx.lineWidth = estate === 'active' ? 3 : estate === 'relaxed' ? 2 : 1.5;
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+
+    // Arrowhead
+    const ax = to.x - ux * NODE_R, ay = to.y - uy * NODE_R;
+    const angle = Math.atan2(dy, dx);
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ax - 10*Math.cos(angle - 0.35), ay - 10*Math.sin(angle - 0.35));
+    ctx.lineTo(ax - 10*Math.cos(angle + 0.35), ay - 10*Math.sin(angle + 0.35));
+    ctx.closePath();
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.fill();
+
+    // Weight label
+    const mx = (from.x + to.x) / 2, my = (from.y + to.y) / 2;
+    const offset = 14;
+    const lx = mx - uy * offset, ly = my + ux * offset;
+    ctx.font = '12px -apple-system, sans-serif';
+    ctx.fillStyle = '#94a3b8';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(e.weight, lx, ly);
+  }
+
+  // In-progress edge
+  if (mode === 'add-edge' && edgeStart) {
+    const from = nodes.find(n => n.id === edgeStart);
+    if (from && mousePos) {
+      ctx.beginPath();
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 1;
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(mousePos.x, mousePos.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  // Draw nodes
+  for (const n of nodes) {
+    const state = getNodeState(n.id);
+    const color = COLORS[state] || COLORS.unvisited;
+
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, NODE_R, 0, Math.PI * 2);
+    ctx.fillStyle = state === 'unvisited' ? '#1e293b' : color + '22';
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = state === 'current' ? 3 : 2;
+    ctx.stroke();
+
+    // Name
+    ctx.font = 'bold 14px -apple-system, sans-serif';
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(n.name, n.x, n.y);
+
+    // Distance label
+    if (stepIdx >= 0 && steps.length) {
+      const d = steps[stepIdx].dist[n.id];
+      if (d !== undefined) {
+        const label = d === Infinity ? '\u221e' : Math.round(d * 100) / 100;
+        ctx.font = '11px -apple-system, sans-serif';
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText(label, n.x, n.y + NODE_R + 14);
+      }
+    }
+  }
+}
+
+// ============ Mouse interaction ============
+let mousePos = null;
+
+function getCanvasPos(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+
+function nodeAt(x, y) {
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    const n = nodes[i];
+    if ((n.x - x) ** 2 + (n.y - y) ** 2 <= NODE_R ** 2) return n;
+  }
+  return null;
+}
+
+canvas.addEventListener('mousemove', e => {
+  mousePos = getCanvasPos(e);
+  if (mode === 'move' && dragging) {
+    dragging.x = mousePos.x - dragOffX;
+    dragging.y = mousePos.y - dragOffY;
+    draw();
+  }
+  if (mode === 'add-edge' && edgeStart) draw();
+});
+
+canvas.addEventListener('mousedown', e => {
+  const p = getCanvasPos(e);
+  const hit = nodeAt(p.x, p.y);
+
+  if (mode === 'add-node') {
+    if (!hit) {
+      const name = String.fromCharCode(nextName);
+      nodes.push({ id: nextId++, name, x: p.x, y: p.y });
+      nextName++;
+      if (nextName > 90) nextName = 65; // wrap
+      updateSourceSelect();
+      document.getElementById('canvas-hint').style.display = 'none';
+      draw();
+    }
+  } else if (mode === 'add-edge') {
+    if (hit) {
+      if (!edgeStart) {
+        edgeStart = hit.id;
+      } else if (hit.id !== edgeStart) {
+        const w = prompt('Edge weight:', '1');
+        if (w !== null && !isNaN(parseFloat(w)) && parseFloat(w) >= 0) {
+          edges.push({ from: edgeStart, to: hit.id, weight: parseFloat(w) });
+        }
+        edgeStart = null;
+        draw();
+      }
+    }
+  } else if (mode === 'move') {
+    if (hit) {
+      dragging = hit;
+      dragOffX = p.x - hit.x;
+      dragOffY = p.y - hit.y;
+    }
+  } else if (mode === 'delete') {
+    if (hit) {
+      const id = hit.id;
+      const idx = nodes.indexOf(hit);
+      nodes.splice(idx, 1);
+      for (let i = edges.length - 1; i >= 0; i--) {
+        if (edges[i].from === id || edges[i].to === id) edges.splice(i, 1);
+      }
+      updateSourceSelect();
+      draw();
+    } else {
+      // Check if clicking near an edge
+      for (let i = edges.length - 1; i >= 0; i--) {
+        const from = nodes.find(n => n.id === edges[i].from);
+        const to = nodes.find(n => n.id === edges[i].to);
+        if (!from || !to) continue;
+        const d = distToSegment(p, from, to);
+        if (d < 10) { edges.splice(i, 1); draw(); break; }
+      }
+    }
+  }
+});
+
+canvas.addEventListener('mouseup', () => { dragging = null; });
+
+function distToSegment(p, a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len2 = dx*dx + dy*dy;
+  if (len2 === 0) return Math.sqrt((p.x-a.x)**2 + (p.y-a.y)**2);
+  let t = ((p.x-a.x)*dx + (p.y-a.y)*dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  const px = a.x + t*dx, py = a.y + t*dy;
+  return Math.sqrt((p.x-px)**2 + (p.y-py)**2);
+}
+
+// ============ Mode switching ============
+function setMode(m) {
+  mode = m;
+  edgeStart = null;
+  document.querySelectorAll('.btn-group .btn-sm').forEach(b => b.style.borderColor = '#475569');
+  const btn = document.getElementById('btn-' + m.replace('add-', 'add-'));
+  if (btn) btn.style.borderColor = '#3b82f6';
+
+  const hints = {
+    'add-node': 'Click on canvas to place a node',
+    'add-edge': 'Click source node, then target node',
+    'move': 'Drag nodes to reposition',
+    'delete': 'Click a node or edge to remove it'
+  };
+  document.getElementById('canvas-hint').textContent = hints[m] || '';
+  document.getElementById('canvas-hint').style.display = 'block';
+}
+
+function updateSourceSelect() {
+  const sel = document.getElementById('source-select');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">-- select --</option>';
+  for (const n of [...nodes].sort((a,b) => a.name.localeCompare(b.name))) {
+    const opt = document.createElement('option');
+    opt.value = n.id;
+    opt.textContent = n.name;
+    sel.appendChild(opt);
+  }
+  if (prev && nodes.find(n => n.id === parseInt(prev))) sel.value = prev;
+}
+
+// ============ Presets ============
+function loadPreset(name) {
+  nodes.length = 0;
+  edges.length = 0;
+  nextId = 0;
+  nextName = 65;
+  steps.length = 0;
+  stepIdx = -1;
+
+  const w = canvas.width / devicePixelRatio;
+  const h = canvas.height / devicePixelRatio;
+  const cx = w / 2, cy = h / 2;
+
+  if (name === 'simple') {
+    addNode('s', cx-180, cy); addNode('a', cx-60, cy-80);
+    addNode('b', cx-60, cy+80); addNode('c', cx+80, cy-40);
+    addNode('d', cx+180, cy+20);
+    addEdgeByName('s','a',1); addEdgeByName('s','b',4);
+    addEdgeByName('a','b',2); addEdgeByName('a','c',5);
+    addEdgeByName('b','c',1); addEdgeByName('c','d',3);
+  } else if (name === 'diamond') {
+    addNode('s', cx-200, cy); addNode('a', cx-80, cy-100);
+    addNode('b', cx-80, cy+100); addNode('c', cx+80, cy-100);
+    addNode('d', cx+80, cy+100); addNode('t', cx+200, cy);
+    addEdgeByName('s','a',2); addEdgeByName('s','b',5);
+    addEdgeByName('a','c',3); addEdgeByName('a','d',8);
+    addEdgeByName('b','d',1); addEdgeByName('c','t',4);
+    addEdgeByName('d','t',2);
+  } else if (name === 'sample') {
+    const r = 160;
+    for (let i = 0; i < 8; i++) {
+      const angle = -Math.PI/2 + i * Math.PI * 2 / 8;
+      addNode(String.fromCharCode(65+i), cx + r*Math.cos(angle), cy + r*Math.sin(angle));
+    }
+    addEdgeByName('A','B',3); addEdgeByName('A','C',6);
+    addEdgeByName('B','C',4); addEdgeByName('B','D',4);
+    addEdgeByName('C','D',8); addEdgeByName('C','E',3);
+    addEdgeByName('D','E',2); addEdgeByName('D','F',5);
+    addEdgeByName('E','F',1); addEdgeByName('E','G',7);
+    addEdgeByName('F','H',2); addEdgeByName('G','H',3);
+  } else if (name === 'grid') {
+    const labels = ['A','B','C','D','E','F','G','H','I'];
+    let k = 0;
+    for (let r = 0; r < 3; r++) {
+      for (let c = 0; c < 3; c++) {
+        addNode(labels[k++], cx-120+c*120, cy-120+r*120);
+      }
+    }
+    // Horizontal
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 2; c++) {
+      addEdgeByName(labels[r*3+c], labels[r*3+c+1], 1+Math.floor(Math.random()*5));
+      addEdgeByName(labels[r*3+c+1], labels[r*3+c], 1+Math.floor(Math.random()*5));
+    }
+    // Vertical
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++) {
+      addEdgeByName(labels[r*3+c], labels[(r+1)*3+c], 1+Math.floor(Math.random()*5));
+      addEdgeByName(labels[(r+1)*3+c], labels[r*3+c], 1+Math.floor(Math.random()*5));
+    }
+  }
+
+  updateSourceSelect();
+  // Auto-select first node as source
+  const sel = document.getElementById('source-select');
+  if (nodes.length) sel.value = nodes[0].id;
+  document.getElementById('canvas-hint').style.display = 'none';
+  updateResults();
+  draw();
+}
+
+function addNode(name, x, y) {
+  nodes.push({ id: nextId++, name, x, y });
+  nextName = Math.max(nextName, name.charCodeAt(0) + 1);
+}
+
+function addEdgeByName(fromName, toName, weight) {
+  const f = nodes.find(n => n.name === fromName);
+  const t = nodes.find(n => n.name === toName);
+  if (f && t) edges.push({ from: f.id, to: t.id, weight });
+}
+
+// ============ DOT import/export ============
+function importDOT() {
+  const text = document.getElementById('dot-input').value;
+  nodes.length = 0;
+  edges.length = 0;
+  nextId = 0;
+  nextName = 65;
+  steps.length = 0;
+  stepIdx = -1;
+
+  const w = canvas.width / devicePixelRatio;
+  const h = canvas.height / devicePixelRatio;
+
+  const edgeRe = /^\s*(\S+)\s*->\s*(\S+)\s*(?:\[.*label\s*=\s*([0-9.eE+-]+).*\])?\s*;?\s*$/;
+  const nodeNames = new Set();
+  const parsedEdges = [];
+
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('digraph') || trimmed === '}') continue;
+    const m = trimmed.match(edgeRe);
+    if (m) {
+      nodeNames.add(m[1]);
+      nodeNames.add(m[2]);
+      parsedEdges.push({ from: m[1], to: m[2], weight: m[3] ? parseFloat(m[3]) : 1 });
+    }
+  }
+
+  const sorted = [...nodeNames].sort();
+  const r = Math.min(w, h) / 2 - 60;
+  const cx = w / 2, cy = h / 2;
+  sorted.forEach((name, i) => {
+    const angle = -Math.PI/2 + i * Math.PI * 2 / sorted.length;
+    addNode(name, cx + r * Math.cos(angle), cy + r * Math.sin(angle));
+  });
+
+  for (const e of parsedEdges) addEdgeByName(e.from, e.to, e.weight);
+
+  updateSourceSelect();
+  if (nodes.length) document.getElementById('source-select').value = nodes[0].id;
+  document.getElementById('canvas-hint').style.display = 'none';
+  updateResults();
+  draw();
+}
+
+function exportDOT() {
+  let dot = 'digraph G {\n';
+  for (const e of edges) {
+    const from = nodes.find(n => n.id === e.from);
+    const to = nodes.find(n => n.id === e.to);
+    if (from && to) {
+      dot += `  ${from.name} -> ${to.name} [label=${e.weight}];\n`;
+    }
+  }
+  dot += '}\n';
+  document.getElementById('dot-input').value = dot;
+}
+
+// ============ Algorithm: Dijkstra (for comparison) ============
+function runDijkstra() {
+  const srcId = parseInt(document.getElementById('source-select').value);
+  if (isNaN(srcId)) { alert('Select a source vertex'); return; }
+
+  steps.length = 0;
+  stepIdx = -1;
+  stopPlay();
+
+  // Build adjacency
+  const adj = {};
+  for (const n of nodes) adj[n.id] = [];
+  for (const e of edges) adj[e.from].push({ to: e.to, w: e.weight });
+
+  const dist = {};
+  for (const n of nodes) dist[n.id] = Infinity;
+  dist[srcId] = 0;
+
+  const finalized = new Set();
+  const frontier = new Set([srcId]);
+
+  // Initial step
+  steps.push({
+    source: srcId,
+    dist: { ...dist },
+    finalized: new Set(),
+    frontier: new Set([srcId]),
+    current: null,
+    activeEdge: null,
+    relaxedEdges: [],
+    info: `Dijkstra: initialized source ${nodes.find(n=>n.id===srcId).name} with distance 0`
+  });
+
+  while (frontier.size > 0) {
+    // Pick minimum from frontier
+    let u = null, minD = Infinity;
+    for (const id of frontier) {
+      if (dist[id] < minD) { minD = dist[id]; u = id; }
+    }
+    if (u === null) break;
+
+    frontier.delete(u);
+    finalized.add(u);
+    const uName = nodes.find(n => n.id === u).name;
+
+    steps.push({
+      source: srcId,
+      dist: { ...dist },
+      finalized: new Set(finalized),
+      frontier: new Set(frontier),
+      current: new Set([u]),
+      activeEdge: null,
+      relaxedEdges: [],
+      info: `Visiting ${uName} (distance: ${dist[u]})`
+    });
+
+    for (const e of adj[u]) {
+      const alt = dist[u] + e.w;
+      const vName = nodes.find(n => n.id === e.to).name;
+      if (alt < dist[e.to]) {
+        dist[e.to] = alt;
+        if (!finalized.has(e.to)) frontier.add(e.to);
+
+        steps.push({
+          source: srcId,
+          dist: { ...dist },
+          finalized: new Set(finalized),
+          frontier: new Set(frontier),
+          current: new Set([u]),
+          activeEdge: { from: u, to: e.to },
+          relaxedEdges: [],
+          info: `Relaxed edge ${uName} -> ${vName}: distance updated to ${alt}`
+        });
+      }
+    }
+  }
+
+  steps.push({
+    source: srcId,
+    dist: { ...dist },
+    finalized: new Set(finalized),
+    frontier: new Set(),
+    current: null,
+    activeEdge: null,
+    relaxedEdges: [],
+    info: `Dijkstra complete. All reachable vertices finalized.`
+  });
+
+  stepIdx = 0;
+  updateResults();
+  draw();
+  document.getElementById('step-info').textContent = steps[0].info;
+}
+
+// ============ Algorithm: BMSSP ============
+function runAlgorithm() {
+  const srcId = parseInt(document.getElementById('source-select').value);
+  if (isNaN(srcId)) { alert('Select a source vertex'); return; }
+
+  steps.length = 0;
+  stepIdx = -1;
+  stopPlay();
+
+  // Build adjacency
+  const adj = {};
+  for (const n of nodes) adj[n.id] = [];
+  for (const e of edges) adj[e.from].push({ to: e.to, w: e.weight });
+
+  const n = nodes.length;
+  const log2n = Math.log2(n) || 1;
+  const k = Math.max(1, Math.floor(Math.cbrt(log2n)));
+  const t = Math.max(1, Math.floor(Math.pow(log2n, 2/3)));
+  const l = Math.max(1, Math.ceil(log2n / t));
+
+  const dist = {};
+  for (const nd of nodes) dist[nd.id] = Infinity;
+  dist[srcId] = 0;
+
+  const complete = new Set([srcId]);
+
+  steps.push({
+    source: srcId,
+    dist: { ...dist },
+    finalized: new Set(),
+    frontier: new Set([srcId]),
+    current: null,
+    activeEdge: null,
+    relaxedEdges: [],
+    info: `BMSSP: initialized. Parameters: k=${k}, t=${t}, l=${l}. Source: ${nodes.find(nd=>nd.id===srcId).name}`
+  });
+
+  function getName(id) {
+    const nd = nodes.find(nd2 => nd2.id === id);
+    return nd ? nd.name : '?';
+  }
+
+  // Base case: Dijkstra-like expansion limited to k+1 nodes
+  function baseCase(B, S, dist, complete) {
+    const x = S.values().next().value;
+    const U0 = new Set([x]);
+    const visited = new Set();
+
+    // Mini-Dijkstra
+    const pq = [{ node: x, dist: dist[x] }];
+    while (pq.length && U0.size < k + 1) {
+      pq.sort((a, b) => a.dist - b.dist);
+      const { node: u, dist: du } = pq.shift();
+      if (visited.has(u)) continue;
+      visited.add(u);
+      U0.add(u);
+      complete.add(u);
+
+      steps.push({
+        source: srcId,
+        dist: { ...dist },
+        finalized: new Set(complete),
+        frontier: new Set([...U0].filter(v => !complete.has(v))),
+        current: new Set([u]),
+        activeEdge: null,
+        relaxedEdges: [],
+        info: `BaseCase: expanding ${getName(u)} (dist: ${du.toFixed(1)}), |U|=${U0.size}`
+      });
+
+      for (const e of (adj[u] || [])) {
+        const alt = du + e.w;
+        if (alt <= dist[e.to] && alt < B) {
+          dist[e.to] = alt;
+          pq.push({ node: e.to, dist: alt });
+
+          steps.push({
+            source: srcId,
+            dist: { ...dist },
+            finalized: new Set(complete),
+            frontier: new Set([...U0].filter(v => !complete.has(v))),
+            current: new Set([u]),
+            activeEdge: { from: u, to: e.to },
+            relaxedEdges: [],
+            info: `BaseCase: relaxed ${getName(u)} -> ${getName(e.to)}, dist = ${alt.toFixed(1)}`
+          });
+        }
+      }
+    }
+
+    if (U0.size <= k) return { B, U: U0 };
+
+    let Bp = -Infinity;
+    for (const v of U0) Bp = Math.max(Bp, dist[v]);
+    const U = new Set([...U0].filter(v => dist[v] < Bp));
+    return { B: Bp, U };
+  }
+
+  // Simplified recursive BMSSP
+  function bmssp(level, B, S, dist, complete) {
+    if (level === 0) return baseCase(B, S, dist, complete);
+
+    // FindPivots: use S as pivots (simplified for demo)
+    const P = new Set(S);
+    const W = new Set(S);
+
+    // Expand witnesses k times
+    let Wprev = new Set(S);
+    for (let iter = 0; iter < k; iter++) {
+      const Wi = new Set();
+      for (const u of Wprev) {
+        if (dist[u] >= B) continue;
+        for (const e of (adj[u] || [])) {
+          if (dist[u] + e.w <= dist[e.to]) {
+            dist[e.to] = dist[u] + e.w;
+            if (dist[e.to] < B) Wi.add(e.to);
+          }
+        }
+      }
+      for (const v of Wi) W.add(v);
+      Wprev = Wi;
+    }
+
+    steps.push({
+      source: srcId,
+      dist: { ...dist },
+      finalized: new Set(complete),
+      frontier: new Set(W),
+      current: new Set(P),
+      activeEdge: null,
+      relaxedEdges: [],
+      info: `BMSSP(l=${level}): FindPivots found ${P.size} pivot(s), ${W.size} witness(es)`
+    });
+
+    // DQueue: process pivots
+    const queue = [...P].map(x => ({ node: x, dist: dist[x] }));
+    queue.sort((a, b) => a.dist - b.dist);
+    const U = new Set();
+    const M = Math.pow(2, (level - 1) * t);
+
+    while (U.size < k * Math.pow(2, level * t) && queue.length) {
+      const batch = queue.splice(0, Math.min(M, queue.length));
+      const Bi = batch[0].dist;
+      const Si = new Set(batch.map(b => b.node));
+
+      const rec = bmssp(level - 1, Bi, Si, dist, complete);
+      for (const v of rec.U) U.add(v);
+
+      // Edge relaxation from U_i
+      for (const u of rec.U) {
+        for (const e of (adj[u] || [])) {
+          const alt = dist[u] + e.w;
+          if (alt <= dist[e.to]) {
+            dist[e.to] = alt;
+            if (alt >= Bi && alt < B) {
+              queue.push({ node: e.to, dist: alt });
+              queue.sort((a, b) => a.dist - b.dist);
+            }
+          }
+        }
+      }
+    }
+
+    let Bprime = B;
+    for (const x of P) if (dist[x] < Bprime) Bprime = dist[x];
+    for (const x of W) if (dist[x] < Bprime) U.add(x);
+    for (const u of U) complete.add(u);
+
+    return { B: Bprime, U };
+  }
+
+  const S0 = new Set([srcId]);
+  bmssp(l, Infinity, S0, dist, complete);
+
+  steps.push({
+    source: srcId,
+    dist: { ...dist },
+    finalized: new Set(complete),
+    frontier: new Set(),
+    current: null,
+    activeEdge: null,
+    relaxedEdges: [],
+    info: `BMSSP complete. ${complete.size} vertices finalized.`
+  });
+
+  stepIdx = 0;
+  updateResults();
+  draw();
+  document.getElementById('step-info').textContent = steps[0].info;
+}
+
+// ============ Animation controls ============
+function stepForward() {
+  if (stepIdx < steps.length - 1) {
+    stepIdx++;
+    document.getElementById('step-info').textContent = steps[stepIdx].info;
+    updateResults();
+    draw();
+  }
+}
+
+function stepBack() {
+  if (stepIdx > 0) {
+    stepIdx--;
+    document.getElementById('step-info').textContent = steps[stepIdx].info;
+    updateResults();
+    draw();
+  }
+}
+
+function goToEnd() {
+  stopPlay();
+  if (steps.length) {
+    stepIdx = steps.length - 1;
+    document.getElementById('step-info').textContent = steps[stepIdx].info;
+    updateResults();
+    draw();
+  }
+}
+
+function togglePlay() {
+  if (playing) {
+    stopPlay();
+  } else {
+    playing = true;
+    document.getElementById('btn-play').textContent = 'Pause';
+    playNext();
+  }
+}
+
+function playNext() {
+  if (!playing) return;
+  if (stepIdx < steps.length - 1) {
+    stepForward();
+    const speed = parseInt(document.getElementById('speed').value);
+    const delay = 1200 - speed * 100;
+    playTimer = setTimeout(playNext, delay);
+  } else {
+    stopPlay();
+  }
+}
+
+function stopPlay() {
+  playing = false;
+  if (playTimer) clearTimeout(playTimer);
+  playTimer = null;
+  document.getElementById('btn-play').textContent = 'Play';
+}
+
+// ============ Results table ============
+function updateResults() {
+  const body = document.getElementById('results-body');
+  body.innerHTML = '';
+  if (stepIdx < 0 || !steps.length) return;
+
+  const s = steps[stepIdx];
+  const sorted = [...nodes].sort((a, b) => a.name.localeCompare(b.name));
+  for (const n of sorted) {
+    const tr = document.createElement('tr');
+    const d = s.dist[n.id];
+    const dText = d === Infinity ? '\u221e' : Math.round(d * 100) / 100;
+    const isActive = s.current && s.current.has(n.id);
+    if (isActive) tr.className = 'active';
+    tr.innerHTML = `<td>${n.name}</td><td>${dText}</td>`;
+    body.appendChild(tr);
+  }
+}
+
+// ============ Clear ============
+function clearGraph() {
+  nodes.length = 0;
+  edges.length = 0;
+  nextId = 0;
+  nextName = 65;
+  steps.length = 0;
+  stepIdx = -1;
+  stopPlay();
+  updateSourceSelect();
+  updateResults();
+  document.getElementById('step-info').textContent = 'Load a preset or build a graph, then run an algorithm to see step-by-step execution.';
+  document.getElementById('canvas-hint').style.display = 'block';
+  document.getElementById('canvas-hint').textContent = 'Click to add a node, or load a preset';
+  draw();
+}
+
+// ============ Init ============
+setTimeout(() => {
+  resize();
+  setMode('add-node');
+}, 50);
+</script>
+</body>
+</html>

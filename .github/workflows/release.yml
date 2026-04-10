@@ -1,0 +1,177 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-go:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            ext: ""
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            ext: ""
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            ext: ""
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            ext: ".exe"
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: implementations/go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: go build -ldflags="-s -w" -o bmssp-go-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./cmd/bmssp/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bmssp-go-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: implementations/go/bmssp-go-*
+
+  build-c:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            suffix: linux-amd64
+          - os: macos-latest
+            suffix: darwin-amd64
+          - os: windows-latest
+            suffix: windows-amd64
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: implementations/c
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          gcc -Wall -Wextra -std=c11 -O2 bmssp.c -lm -o bmssp-c-${{ matrix.suffix }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bmssp-c-${{ matrix.suffix }}
+          path: implementations/c/bmssp-c-*
+
+  build-rust:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            suffix: linux-amd64
+            ext: ""
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            suffix: darwin-amd64
+            ext: ""
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            suffix: darwin-arm64
+            ext: ""
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            suffix: windows-amd64
+            ext: ".exe"
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: implementations/rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Rename binary
+        shell: bash
+        run: cp target/${{ matrix.target }}/release/bmssp${{ matrix.ext }} bmssp-rust-${{ matrix.suffix }}${{ matrix.ext }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bmssp-rust-${{ matrix.suffix }}
+          path: implementations/rust/bmssp-rust-*
+
+  build-fortran:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            suffix: linux-amd64
+          - os: macos-latest
+            suffix: darwin-amd64
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: implementations/fortran
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install gfortran (macOS)
+        if: runner.os == 'macOS'
+        run: brew install gcc
+      - name: Build
+        run: gfortran -Wall -Wextra -std=f2008 -O2 bmssp.f90 -o bmssp-fortran-${{ matrix.suffix }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bmssp-fortran-${{ matrix.suffix }}
+          path: implementations/fortran/bmssp-fortran-*
+
+  build-java:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: implementations/java
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Build JAR
+        run: |
+          javac BMSSP.java
+          jar cfe bmssp-java.jar BMSSP *.class
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bmssp-java
+          path: implementations/java/bmssp-java.jar
+
+  release:
+    needs: [build-go, build-c, build-rust, build-fortran, build-java]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: List artifacts
+        run: find artifacts -type f | sort
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "BMSSP ${{ github.ref_name }}" \
+            --generate-notes \
+            artifacts/*

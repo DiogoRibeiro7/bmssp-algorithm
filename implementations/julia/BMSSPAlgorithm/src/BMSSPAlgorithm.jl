@@ -127,8 +127,8 @@ function pull!(dq::DQueue)
     
     out = Tuple{Any, Float64}[]
     while !isempty(dq.data) && length(out) < dq.M
-        node = dequeue_pair!(dq.data)
-        push!(out, node)
+        p = dequeue_pair!(dq.data)
+        push!(out, (p.first, p.second))
     end
     
     B_i = isempty(out) ? dq.B : out[1][2]
@@ -371,29 +371,42 @@ function run_sssp(graph::Graph, source)
 end
 
 """
-Example usage and testing.
+    load_graph_from_dot(filename) -> Graph
+
+Load a directed weighted graph from a DOT file.
 """
-function main()
-    # Create test graph
+function load_graph_from_dot(filename::String)
     g = Graph()
-    add_edge!(g, "s", "a", 1.0)
-    add_edge!(g, "s", "b", 4.0)
-    add_edge!(g, "a", "b", 2.0)
-    add_edge!(g, "a", "c", 5.0)
-    add_edge!(g, "b", "c", 1.0)
-    
-    # Run SSSP
-    dist = run_sssp(g, "s")
-    
-    # Print results
-    println("Distances from s:")
-    for (node, distance) in sort(collect(dist))
-        if distance == Inf
-            println("  $node: ∞")
+    edge_re = r"^\s*(\S+)\s*->\s*(\S+)\s*(?:\[.*label\s*=\s*([0-9.eE+-]+).*\])?\s*;?\s*$"
+    node_re = r"^\s*(\w+)\s*;\s*$"
+
+    for line in eachline(filename)
+        trimmed = strip(line)
+        if isempty(trimmed) || startswith(trimmed, "//") || startswith(trimmed, "digraph") || trimmed == "}"
+            continue
+        end
+
+        m = match(edge_re, trimmed)
+        if m !== nothing
+            from = m.captures[1]
+            to = m.captures[2]
+            weight = m.captures[3] !== nothing ? parse(Float64, m.captures[3]) : 1.0
+            add_edge!(g, from, to, weight)
         else
-            println("  $node: $distance")
+            m = match(node_re, trimmed)
+            if m !== nothing
+                node = m.captures[1]
+                if !haskey(g.adj, node)
+                    g.adj[node] = Tuple{Any, Float64}[]
+                end
+            end
         end
     end
+
+    if isempty(g.adj)
+        error("DOT file $filename did not contain any nodes")
+    end
+    return g
 end
 
 end # module BMSSPAlgorithm

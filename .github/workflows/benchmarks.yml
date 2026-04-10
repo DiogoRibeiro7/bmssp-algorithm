@@ -6,6 +6,11 @@ on:
     paths:
       - "implementations/**"
       - "benchmarks/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "implementations/**"
+      - "benchmarks/**"
   workflow_dispatch:
 
 permissions:
@@ -26,14 +31,16 @@ jobs:
         with:
           go-version: "1.21"
 
+      - uses: dtolnay/rust-toolchain@stable
+
       - name: Install benchmark dependencies
         run: pip install -r benchmarks/requirements.txt
 
-      - name: Run benchmarks
+      - name: Run full performance comparison
         run: python benchmarks/performance_comparison.py
         timeout-minutes: 30
 
-      - name: Upload results
+      - name: Upload comparison results
         uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -43,3 +50,42 @@ jobs:
             benchmarks/PERFORMANCE_REPORT.md
             benchmarks/performance_analysis.png
           retention-days: 30
+
+  regression:
+    name: Regression detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Run regression check
+        run: |
+          exitcode=0
+          python benchmarks/regression_check.py --threshold 15 || exitcode=$?
+          # Exit code 2 means no baseline (first run) — not a failure
+          if [ "$exitcode" -eq 2 ]; then
+            echo "::notice::No baseline found. Initial baseline created."
+            exit 0
+          fi
+          exit $exitcode
+        timeout-minutes: 15
+
+      - name: Upload regression data
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: regression-data
+          path: |
+            benchmarks/baseline.json
+            benchmarks/history/
+            benchmarks/results/HISTORY_REPORT.md
+          retention-days: 90

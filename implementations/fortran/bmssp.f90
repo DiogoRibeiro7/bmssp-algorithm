@@ -1,7 +1,8 @@
 module bmssp_module
   implicit none
-  integer, parameter :: MAX_NODES = 100
-  integer, parameter :: MAX_EDGES = 100
+  integer, parameter :: MAX_NODES = 1000
+  integer, parameter :: MAX_EDGES = 1000
+  integer, parameter :: MAX_NAME_LEN = 64
 
   type :: Edge
     integer :: to
@@ -185,30 +186,321 @@ contains
     call bmssp(g, 1, huge(0.0), S, 1, dist)
   end subroutine run_sssp
 
+  ! -------- Name index for string<->integer mapping --------
+
+  function name_index_of(names, name_count, name) result(idx)
+    character(len=MAX_NAME_LEN), intent(in) :: names(:)
+    integer, intent(in) :: name_count
+    character(len=*), intent(in) :: name
+    integer :: idx, i
+    idx = -1
+    do i = 1, name_count
+      if (trim(names(i)) == trim(name)) then
+        idx = i
+        return
+      end if
+    end do
+  end function name_index_of
+
+  function name_get_or_add(names, name_count, name) result(idx)
+    character(len=MAX_NAME_LEN), intent(inout) :: names(:)
+    integer, intent(inout) :: name_count
+    character(len=*), intent(in) :: name
+    integer :: idx
+    idx = name_index_of(names, name_count, name)
+    if (idx < 0) then
+      name_count = name_count + 1
+      names(name_count) = trim(name)
+      idx = name_count
+    end if
+  end function name_get_or_add
+
+  subroutine load_graph_from_dot(filename, g, names, name_count, ierr)
+    character(len=*), intent(in) :: filename
+    type(Graph), intent(out) :: g
+    character(len=MAX_NAME_LEN), intent(out) :: names(MAX_NODES)
+    integer, intent(out) :: name_count, ierr
+    character(len=1024) :: line
+    integer :: ios, arrow_pos, bracket_pos, semi_pos, eq_pos, end_pos
+    integer :: from_idx, to_idx
+    character(len=MAX_NAME_LEN) :: from_name, to_name, weight_str
+    real :: weight
+    integer, parameter :: MAX_DOT_EDGES = 10000
+    integer :: edge_from(MAX_DOT_EDGES), edge_to(MAX_DOT_EDGES)
+    real :: edge_wt(MAX_DOT_EDGES)
+    integer :: edge_count, i
+
+    ierr = 0
+    name_count = 0
+    edge_count = 0
+
+    open(unit=10, file=filename, status='old', action='read', iostat=ios)
+    if (ios /= 0) then
+      ierr = 1
+      return
+    end if
+
+    do
+      read(10, '(A)', iostat=ios) line
+      if (ios /= 0) exit
+
+      line = adjustl(line)
+      ! Skip empty, comments, digraph header, closing brace
+      if (len_trim(line) == 0) cycle
+      if (line(1:2) == '//') cycle
+      if (index(line, 'digraph') == 1) cycle
+      if (trim(line) == '}') cycle
+
+      arrow_pos = index(line, '->')
+      if (arrow_pos > 0) then
+        ! Parse edge: FROM -> TO [label=WEIGHT];
+        from_name = adjustl(line(1:arrow_pos-1))
+        from_name = trim(from_name)
+
+        ! Extract TO name (until space, '[', or ';')
+        to_name = ''
+        i = arrow_pos + 2
+        ! skip whitespace after ->
+        do while (i <= len_trim(line) .and. line(i:i) == ' ')
+          i = i + 1
+        end do
+        semi_pos = i
+        do while (semi_pos <= len_trim(line))
+          if (line(semi_pos:semi_pos) == ' ' .or. line(semi_pos:semi_pos) == '[' &
+              .or. line(semi_pos:semi_pos) == ';') exit
+          semi_pos = semi_pos + 1
+        end do
+        to_name = trim(line(i:semi_pos-1))
+
+        if (len_trim(from_name) == 0 .or. len_trim(to_name) == 0) cycle
+
+        ! Parse weight from [label=X]
+        weight = 1.0
+        bracket_pos = index(line, 'label')
+        if (bracket_pos > 0) then
+          eq_pos = index(line(bracket_pos:), '=')
+          if (eq_pos > 0) then
+            ! Extract just the numeric portion (stop at ], ;, space, or end)
+            eq_pos = bracket_pos + eq_pos  ! absolute position after '='
+            end_pos = eq_pos
+            do while (end_pos <= len_trim(line))
+              if (line(end_pos:end_pos) == ']' .or. line(end_pos:end_pos) == ';' &
+                  .or. line(end_pos:end_pos) == ' ') exit
+              end_pos = end_pos + 1
+            end do
+            weight_str = line(eq_pos:end_pos-1)
+            read(weight_str, *, iostat=ios) weight
+            if (ios /= 0) weight = 1.0
+          end if
+        end if
+
+        from_idx = name_get_or_add(names, name_count, trim(from_name))
+        to_idx = name_get_or_add(names, name_count, trim(to_name))
+        edge_count = edge_count + 1
+        edge_from(edge_count) = from_idx
+        edge_to(edge_count) = to_idx
+        edge_wt(edge_count) = weight
+      else
+        ! Standalone node: NAME;
+        semi_pos = index(line, ';')
+        if (semi_pos > 1) then
+          from_name = trim(adjustl(line(1:semi_pos-1)))
+          if (len_trim(from_name) > 0 .and. from_name /= '}') then
+            from_idx = name_get_or_add(names, name_count, trim(from_name))
+          end if
+        end if
+      end if
+    end do
+    close(10)
+
+    if (name_count == 0) then
+      ierr = 2
+      return
+    end if
+
+    call init_graph(g, name_count)
+    do i = 1, edge_count
+      call add_edge(g, edge_from(i), edge_to(i), edge_wt(i))
+    end do
+  end subroutine load_graph_from_dot
+
 end module bmssp_module
 
 program main
   use bmssp_module
   implicit none
-  integer, parameter :: n = 4
+  character(len=256) :: dot_file, source_name, target_name, arg
+  character(len=MAX_NAME_LEN) :: names(MAX_NODES)
   type(Graph) :: g
-  real :: dist(n)
-  integer :: i
+  real :: dist(MAX_NODES)
+  integer :: name_count, ierr, source_idx, target_idx
+  integer :: i, nargs, iarg
+  logical :: verbose, json_out, has_target
+  character(len=MAX_NAME_LEN) :: sorted_names(MAX_NODES)
+  integer :: sorted_idx(MAX_NODES)
 
-  call init_graph(g, n)
-  call add_edge(g, 1, 2, 1.0)
-  call add_edge(g, 1, 3, 4.0)
-  call add_edge(g, 2, 3, 2.0)
-  call add_edge(g, 2, 4, 5.0)
-  call add_edge(g, 3, 4, 1.0)
+  verbose = .false.
+  json_out = .false.
+  has_target = .false.
+  dot_file = ''
+  source_name = ''
+  target_name = ''
 
-  call run_sssp(g, 1, dist)
+  nargs = command_argument_count()
+  if (nargs == 0) then
+    write(0, '(A)') 'Usage: bmssp [OPTIONS] <graph.dot> <source> [target]'
+    stop 2
+  end if
 
-  do i = 1, n
-    if (dist(i) > huge(0.0)/2) then
-      print *, 'Inf'
-    else
-      print *, dist(i)
-    end if
+  iarg = 1
+  do while (iarg <= nargs)
+    call get_command_argument(iarg, arg)
+    select case (trim(arg))
+      case ('--verbose')
+        verbose = .true.
+      case ('--json')
+        json_out = .true.
+      case ('-V', '--version')
+        print '(A)', 'bmssp (Fortran) 0.1.0'
+        stop
+      case ('-h', '--help')
+        write(0, '(A)') 'Usage: bmssp [OPTIONS] <graph.dot> <source> [target]'
+        stop
+      case default
+        if (arg(1:1) == '-') then
+          write(0, '(A,A,A)') "bmssp: unknown option '", trim(arg), "'"
+          stop 2
+        end if
+        if (len_trim(dot_file) == 0) then
+          dot_file = trim(arg)
+        else if (len_trim(source_name) == 0) then
+          source_name = trim(arg)
+        else if (.not. has_target) then
+          target_name = trim(arg)
+          has_target = .true.
+        else
+          write(0, '(A)') 'bmssp: too many arguments'
+          stop 2
+        end if
+    end select
+    iarg = iarg + 1
   end do
+
+  if (len_trim(dot_file) == 0 .or. len_trim(source_name) == 0) then
+    write(0, '(A)') 'bmssp: invalid arguments'
+    write(0, '(A)') 'Usage: bmssp [OPTIONS] <graph.dot> <source> [target]'
+    stop 2
+  end if
+
+  call load_graph_from_dot(trim(dot_file), g, names, name_count, ierr)
+  if (ierr == 1) then
+    write(0, '(A,A,A)') 'bmssp: cannot open ', trim(dot_file), ': no such file or directory'
+    stop 1
+  else if (ierr == 2) then
+    write(0, '(A,A,A)') 'bmssp: DOT file ', trim(dot_file), ' did not contain any nodes'
+    stop 1
+  end if
+
+  source_idx = name_index_of(names, name_count, trim(source_name))
+  if (source_idx < 0) then
+    write(0, '(A,A,A)') "bmssp: source vertex '", trim(source_name), "' not found in graph"
+    stop 1
+  end if
+
+  if (has_target) then
+    target_idx = name_index_of(names, name_count, trim(target_name))
+    if (target_idx < 0) then
+      write(0, '(A,A,A)') "bmssp: target vertex '", trim(target_name), "' not found in graph"
+      stop 1
+    end if
+  end if
+
+  call run_sssp(g, source_idx, dist)
+
+  ! Sort names alphabetically for output
+  do i = 1, name_count
+    sorted_names(i) = names(i)
+    sorted_idx(i) = i
+  end do
+  call sort_names(sorted_names, sorted_idx, name_count)
+
+  if (has_target) then
+    if (dist(target_idx) > huge(0.0)/2) then
+      if (json_out) then
+        print '(A)', '{'
+        print '(A,A,A)', '  "source": "', trim(source_name), '",'
+        print '(A,A,A)', '  "target": "', trim(target_name), '",'
+        print '(A)', '  "distance": null,'
+        print '(A)', '  "path": []'
+        print '(A)', '}'
+      else
+        print '(A,A,A,A)', 'no path from ', trim(source_name), ' to ', trim(target_name)
+      end if
+    else
+      if (json_out) then
+        print '(A)', '{'
+        print '(A,A,A)', '  "source": "', trim(source_name), '",'
+        print '(A,A,A)', '  "target": "', trim(target_name), '",'
+        print '(A,I0,A)', '  "distance": ', nint(dist(target_idx)), ','
+        print '(A,A,A,A,A)', '  "path": ["', trim(source_name), '", "', trim(target_name), '"]'
+        print '(A)', '}'
+      else
+        print '(A,A,A,A,I0,A)', trim(source_name), ' -> ', trim(target_name), &
+              ' (distance: ', nint(dist(target_idx)), ')'
+      end if
+    end if
+  else if (json_out) then
+    print '(A)', '{'
+    print '(A,A,A)', '  "source": "', trim(source_name), '",'
+    print '(A)', '  "distances": {'
+    do i = 1, name_count
+      if (dist(sorted_idx(i)) > huge(0.0)/2) then
+        if (i < name_count) then
+          print '(A,A,A)', '    "', trim(sorted_names(i)), '": null,'
+        else
+          print '(A,A,A)', '    "', trim(sorted_names(i)), '": null'
+        end if
+      else
+        if (i < name_count) then
+          print '(A,A,A,I0,A)', '    "', trim(sorted_names(i)), '": ', &
+                nint(dist(sorted_idx(i))), ','
+        else
+          print '(A,A,A,I0)', '    "', trim(sorted_names(i)), '": ', &
+                nint(dist(sorted_idx(i)))
+        end if
+      end if
+    end do
+    print '(A)', '  }'
+    print '(A)', '}'
+  else
+    do i = 1, name_count
+      if (dist(sorted_idx(i)) > huge(0.0)/2) then
+        print '(A,A,A)', trim(sorted_names(i)), char(9), 'inf'
+      else
+        print '(A,A,I0)', trim(sorted_names(i)), char(9), nint(dist(sorted_idx(i)))
+      end if
+    end do
+  end if
+
+contains
+  subroutine sort_names(snames, sidx, n)
+    character(len=MAX_NAME_LEN), intent(inout) :: snames(:)
+    integer, intent(inout) :: sidx(:)
+    integer, intent(in) :: n
+    integer :: i, j, tmp_idx
+    character(len=MAX_NAME_LEN) :: tmp_name
+    ! Simple insertion sort
+    do i = 2, n
+      tmp_name = snames(i)
+      tmp_idx = sidx(i)
+      j = i - 1
+      do while (j >= 1 .and. lgt(snames(j), tmp_name))
+        snames(j+1) = snames(j)
+        sidx(j+1) = sidx(j)
+        j = j - 1
+      end do
+      snames(j+1) = tmp_name
+      sidx(j+1) = tmp_idx
+    end do
+  end subroutine sort_names
 end program main

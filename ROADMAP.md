@@ -24,21 +24,21 @@ This document outlines the planned development direction for the BMSSP Algorithm
 
 ## Phase 3 -- Usability and Tooling
 
-- [ ] DOT file input support for all implementations (not just C)
-- [ ] Unified CLI interface across languages
-- [ ] Docker images for each implementation
-- [ ] Pre-built binaries via GitHub Releases
-- [ ] Interactive web demo for small graphs
-- [ ] Add a LICENSE file (MIT)
+- [x] DOT file input support for all implementations (not just C)
+- [x] Unified CLI interface across languages
+- [x] Docker images for each implementation
+- [x] Pre-built binaries via GitHub Releases
+- [x] Interactive web demo for small graphs
+- [x] Add a LICENSE file (MIT)
 
 ## Phase 4 -- Performance and Analysis
 
-- [ ] Automated performance regression detection in CI
-- [ ] Benchmark results tracked over time with historical comparison
-- [ ] Memory profiling for each implementation
-- [ ] Comparison against other advanced SSSP algorithms (Thorup, Pettie-Ramachandran)
-- [ ] Large-graph benchmarks (n > 10^6)
-- [ ] Platform-specific optimization notes (SIMD, cache behavior)
+- [x] Automated performance regression detection in CI
+- [x] Benchmark results tracked over time with historical comparison
+- [x] Memory profiling for each implementation
+- [x] Comparison against other advanced SSSP algorithms (Thorup, Pettie-Ramachandran)
+- [x] Large-graph benchmarks (n > 10^6)
+- [x] Platform-specific optimization notes (SIMD, cache behavior)
 
 ## Phase 5 -- Community and Research
 

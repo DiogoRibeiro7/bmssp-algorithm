@@ -452,14 +452,3 @@ func RunSSSP(graph *Graph, source string, verbose bool) map[string]float64 {
 	return dHat
 }
 
-// -------- Example --------
-func main() {
-	g := NewGraph()
-	g.AddEdge("s", "a", 1)
-	g.AddEdge("s", "b", 4)
-	g.AddEdge("a", "b", 2)
-	g.AddEdge("a", "c", 5)
-	g.AddEdge("b", "c", 1)
-	dist := RunSSSP(g, "s", false)
-	fmt.Println("Distances from s:", dist)
-}

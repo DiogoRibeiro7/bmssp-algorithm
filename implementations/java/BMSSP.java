@@ -1,4 +1,6 @@
+import java.io.*;
 import java.util.*;
+import java.util.regex.*;
 
 /**
  * BMSSP – Breaking the Sorting Barrier for Directed Single-Source Shortest Paths
@@ -328,16 +330,163 @@ public class BMSSP {
         return dHat;
     }
 
-    /** Example usage. */
-    public static void main(String[] args) {
-        Graph g = new Graph();
-        g.addEdge("s", "a", 1);
-        g.addEdge("s", "b", 4);
-        g.addEdge("a", "b", 2);
-        g.addEdge("a", "c", 5);
-        g.addEdge("b", "c", 1);
+    private static final String VERSION = "0.1.0";
 
-        Map<String, Double> dist = runSSSP(g, "s", false);
-        System.out.println("Distances from s: " + dist);
+    /** Load a directed weighted graph from a DOT file. */
+    public static Graph loadGraphFromDOT(String filename) throws IOException {
+        Graph g = new Graph();
+        Pattern edgePattern = Pattern.compile(
+            "^\\s*(\\S+)\\s*->\\s*(\\S+)\\s*(?:\\[.*label\\s*=\\s*([0-9.eE+-]+).*\\])?\\s*;?\\s*$");
+        Pattern nodePattern = Pattern.compile("^\\s*(\\w+)\\s*;\\s*$");
+
+        try (BufferedReader br = new BufferedReader(new FileReader(filename))) {
+            String line;
+            int lineNum = 0;
+            while ((line = br.readLine()) != null) {
+                lineNum++;
+                String trimmed = line.trim();
+                if (trimmed.isEmpty() || trimmed.startsWith("//")
+                        || trimmed.startsWith("digraph") || trimmed.equals("}")) {
+                    continue;
+                }
+                Matcher edgeMatch = edgePattern.matcher(trimmed);
+                if (edgeMatch.matches()) {
+                    String from = edgeMatch.group(1);
+                    String to = edgeMatch.group(2);
+                    double weight = 1.0;
+                    if (edgeMatch.group(3) != null) {
+                        weight = Double.parseDouble(edgeMatch.group(3));
+                    }
+                    g.addEdge(from, to, weight);
+                } else {
+                    Matcher nodeMatch = nodePattern.matcher(trimmed);
+                    if (nodeMatch.matches()) {
+                        String node = nodeMatch.group(1);
+                        g.adj.computeIfAbsent(node, k -> new ArrayList<>());
+                    }
+                }
+            }
+        }
+        if (g.nodes().isEmpty()) {
+            throw new IOException("DOT file " + filename + " did not contain any nodes");
+        }
+        return g;
+    }
+
+    private static String formatNumber(double v) {
+        if (v == Math.floor(v) && Math.abs(v) < 1e15) {
+            return String.valueOf((long) v);
+        }
+        return String.valueOf(v);
+    }
+
+    /** CLI entry point following CLI_SPEC.md. */
+    public static void main(String[] args) {
+        boolean verbose = false;
+        boolean jsonOut = false;
+        List<String> positional = new ArrayList<>();
+
+        for (String arg : args) {
+            switch (arg) {
+                case "--verbose": verbose = true; break;
+                case "--json": jsonOut = true; break;
+                case "-V": case "--version":
+                    System.out.println("bmssp (Java) " + VERSION);
+                    System.exit(0);
+                    break;
+                case "-h": case "--help":
+                    System.err.println("Usage: java BMSSP [OPTIONS] <graph.dot> <source> [target]");
+                    System.exit(0);
+                    break;
+                default:
+                    if (arg.startsWith("-")) {
+                        System.err.println("bmssp: unknown option '" + arg + "'");
+                        System.exit(2);
+                    }
+                    positional.add(arg);
+            }
+        }
+
+        if (positional.size() < 2 || positional.size() > 3) {
+            System.err.println("bmssp: invalid arguments");
+            System.err.println("Usage: java BMSSP [OPTIONS] <graph.dot> <source> [target]");
+            System.exit(2);
+        }
+
+        String dotFile = positional.get(0);
+        String source = positional.get(1);
+        String target = positional.size() == 3 ? positional.get(2) : null;
+
+        Graph graph;
+        try {
+            graph = loadGraphFromDOT(dotFile);
+        } catch (IOException e) {
+            System.err.println("bmssp: " + e.getMessage());
+            System.exit(1);
+            return;
+        }
+
+        if (!graph.nodes().contains(source)) {
+            System.err.println("bmssp: source vertex '" + source + "' not found in graph");
+            System.exit(1);
+        }
+        if (target != null && !graph.nodes().contains(target)) {
+            System.err.println("bmssp: target vertex '" + target + "' not found in graph");
+            System.exit(1);
+        }
+
+        Map<String, Double> dist = runSSSP(graph, source, verbose);
+        TreeMap<String, Double> sorted = new TreeMap<>(dist);
+
+        if (target != null) {
+            double d = dist.getOrDefault(target, Double.POSITIVE_INFINITY);
+            if (Double.isInfinite(d)) {
+                if (jsonOut) {
+                    System.out.println("{");
+                    System.out.println("  \"source\": \"" + source + "\",");
+                    System.out.println("  \"target\": \"" + target + "\",");
+                    System.out.println("  \"distance\": null,");
+                    System.out.println("  \"path\": []");
+                    System.out.println("}");
+                } else {
+                    System.out.println("no path from " + source + " to " + target);
+                }
+            } else {
+                if (jsonOut) {
+                    System.out.println("{");
+                    System.out.println("  \"source\": \"" + source + "\",");
+                    System.out.println("  \"target\": \"" + target + "\",");
+                    System.out.println("  \"distance\": " + formatNumber(d) + ",");
+                    System.out.println("  \"path\": [\"" + source + "\", \"" + target + "\"]");
+                    System.out.println("}");
+                } else {
+                    System.out.println(source + " -> " + target + " (distance: " + formatNumber(d) + ")");
+                }
+            }
+        } else if (jsonOut) {
+            System.out.println("{");
+            System.out.println("  \"source\": \"" + source + "\",");
+            System.out.println("  \"distances\": {");
+            int i = 0;
+            for (Map.Entry<String, Double> entry : sorted.entrySet()) {
+                String comma = (i + 1 < sorted.size()) ? "," : "";
+                if (Double.isInfinite(entry.getValue())) {
+                    System.out.println("    \"" + entry.getKey() + "\": null" + comma);
+                } else {
+                    System.out.println("    \"" + entry.getKey() + "\": " + formatNumber(entry.getValue()) + comma);
+                }
+                i++;
+            }
+            System.out.println("  }");
+            System.out.println("}");
+        } else {
+            for (Map.Entry<String, Double> entry : sorted.entrySet()) {
+                if (Double.isInfinite(entry.getValue())) {
+                    System.out.println(entry.getKey() + "\tinf");
+                } else {
+                    System.out.println(entry.getKey() + "\t" + formatNumber(entry.getValue()));
+                }
+            }
+        }
     }
 }

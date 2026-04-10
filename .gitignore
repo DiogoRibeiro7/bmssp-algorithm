@@ -56,3 +56,7 @@ implementations/c/bmssp
 implementations/c/bmssp_test_bin
 implementations/fortran/bmssp
 implementations/fortran/bmssp_test_bin
+*.mod
+
+# Benchmark artifacts
+benchmarks/baseline.json
