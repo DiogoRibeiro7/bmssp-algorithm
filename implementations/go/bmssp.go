@@ -452,3 +452,33 @@ func RunSSSP(graph *Graph, source string, verbose bool) map[string]float64 {
 	return dHat
 }
 
+// Dijkstra computes shortest paths from source using a standard Dijkstra
+// algorithm. This is used by the CLI to provide accurate distances (matching
+// the C reference implementation pattern).
+func Dijkstra(graph *Graph, source string) map[string]float64 {
+	dist := make(map[string]float64)
+	for v := range graph.Adj {
+		dist[v] = math.Inf(1)
+	}
+	dist[source] = 0
+	visited := make(map[string]struct{})
+	h := &nodeDistHeap{}
+	heap.Init(h)
+	heap.Push(h, nodeDist{0, source})
+	for h.Len() > 0 {
+		nd := heap.Pop(h).(nodeDist)
+		if _, ok := visited[nd.node]; ok {
+			continue
+		}
+		visited[nd.node] = struct{}{}
+		for _, e := range graph.Neighbors(nd.node) {
+			alt := nd.dist + e.W
+			if alt < dist[e.To] {
+				dist[e.To] = alt
+				heap.Push(h, nodeDist{alt, e.To})
+			}
+		}
+	}
+	return dist
+}
+

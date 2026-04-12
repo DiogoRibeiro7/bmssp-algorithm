@@ -9,6 +9,11 @@ services:
       context: ./implementations/c
     image: bmssp-c:latest
 
+  cpp:
+    build:
+      context: ./implementations/cpp
+    image: bmssp-cpp:latest
+
   rust:
     build:
       context: ./implementations/rust
@@ -28,3 +33,13 @@ services:
     build:
       context: ./implementations/julia
     image: bmssp-julia:latest
+
+  python:
+    build:
+      context: ./implementations/python
+    image: bmssp-python:latest
+
+  haskell:
+    build:
+      context: ./implementations/haskell
+    image: bmssp-haskell:latest

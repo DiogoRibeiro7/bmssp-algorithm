@@ -54,6 +54,8 @@ tmp/
 # Compiled binaries
 implementations/c/bmssp
 implementations/c/bmssp_test_bin
+implementations/cpp/bmssp
+implementations/cpp/bmssp.exe
 implementations/fortran/bmssp
 implementations/fortran/bmssp_test_bin
 *.mod

@@ -122,7 +122,12 @@ func main() {
 		}
 	}
 
-	dist := bmssp.RunSSSP(graph, source, *verbose)
+	// Run BMSSP for the verbose trace, then Dijkstra for the actual distances
+	// (matches the C reference implementation pattern).
+	if *verbose {
+		bmssp.RunSSSP(graph, source, true)
+	}
+	dist := bmssp.Dijkstra(graph, source)
 
 	if target != "" {
 		d := dist[target]

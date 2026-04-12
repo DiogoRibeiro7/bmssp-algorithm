@@ -1,0 +1,12 @@
+[package]
+name = "bmssp-petgraph-example"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "petgraph_example"
+path = "src/main.rs"
+
+[dependencies]
+petgraph = "0.6"
+bmssp = { path = "../../implementations/rust" }

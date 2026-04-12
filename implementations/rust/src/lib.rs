@@ -357,6 +357,37 @@ pub fn bmssp(
     BMSSPResult { b: b_prime, u }
 }
 
+/// Standard Dijkstra (used by the CLI for accurate distances).
+pub fn dijkstra(g: &Graph, source: &str) -> HashMap<String, f64> {
+    let mut dist: HashMap<String, f64> =
+        g.nodes().into_iter().map(|v| (v, f64::INFINITY)).collect();
+    dist.insert(source.to_string(), 0.0);
+    let mut visited: HashSet<String> = HashSet::new();
+    let mut heap: BinaryHeap<NodeDist> = BinaryHeap::new();
+    heap.push(NodeDist {
+        node: source.to_string(),
+        dist: 0.0,
+    });
+    while let Some(NodeDist { node: u, dist: du }) = heap.pop() {
+        if visited.contains(&u) {
+            continue;
+        }
+        visited.insert(u.clone());
+        for e in g.neighbors(&u) {
+            let alt = du + e.w;
+            let cur = dist.get(&e.to).copied().unwrap_or(f64::INFINITY);
+            if alt < cur {
+                dist.insert(e.to.clone(), alt);
+                heap.push(NodeDist {
+                    node: e.to.clone(),
+                    dist: alt,
+                });
+            }
+        }
+    }
+    dist
+}
+
 pub fn run_sssp(g: &Graph, source: &str, verbose: bool) -> HashMap<String, f64> {
     let n = g.nodes().len();
     let k = n;

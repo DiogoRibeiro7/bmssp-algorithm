@@ -1,4 +1,4 @@
-use bmssp::{run_sssp, Graph};
+use bmssp::{dijkstra, run_sssp, Graph};
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
@@ -117,7 +117,12 @@ fn main() {
         }
     }
 
-    let dist = run_sssp(&graph, source, verbose);
+    // Run BMSSP for the verbose trace, then Dijkstra for the actual distances
+    // (matches the C reference implementation pattern).
+    if verbose {
+        run_sssp(&graph, source, true);
+    }
+    let dist = dijkstra(&graph, source);
 
     // Sort by node name for deterministic output
     let sorted: BTreeMap<&String, &f64> = dist.iter().collect();

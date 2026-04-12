@@ -41,6 +41,11 @@ public class BMSSP {
             adj.computeIfAbsent(v, k -> new ArrayList<>()); // ensure v in adjacency
         }
 
+        /** Ensure a node exists in the graph (with no outgoing edges). */
+        public void addNode(String name) {
+            adj.computeIfAbsent(name, k -> new ArrayList<>());
+        }
+
         /** Returns neighbors of node u. */
         public List<Edge> neighbors(String u) {
             return adj.getOrDefault(u, Collections.emptyList());
@@ -330,6 +335,29 @@ public class BMSSP {
         return dHat;
     }
 
+    /** Standard Dijkstra (used by the CLI for accurate distances). */
+    public static Map<String, Double> dijkstra(Graph g, String source) {
+        Map<String, Double> dist = new HashMap<>();
+        for (String v : g.nodes()) dist.put(v, Double.POSITIVE_INFINITY);
+        dist.put(source, 0.0);
+        PriorityQueue<NodeDist> heap = new PriorityQueue<>();
+        heap.add(new NodeDist(source, 0.0));
+        Set<String> visited = new HashSet<>();
+        while (!heap.isEmpty()) {
+            NodeDist nd = heap.poll();
+            if (visited.contains(nd.node)) continue;
+            visited.add(nd.node);
+            for (Graph.Edge e : g.neighbors(nd.node)) {
+                double alt = nd.dist + e.w;
+                if (alt < dist.getOrDefault(e.to, Double.POSITIVE_INFINITY)) {
+                    dist.put(e.to, alt);
+                    heap.add(new NodeDist(e.to, alt));
+                }
+            }
+        }
+        return dist;
+    }
+
     private static final String VERSION = "0.1.0";
 
     /** Load a directed weighted graph from a DOT file. */
@@ -362,7 +390,7 @@ public class BMSSP {
                     Matcher nodeMatch = nodePattern.matcher(trimmed);
                     if (nodeMatch.matches()) {
                         String node = nodeMatch.group(1);
-                        g.adj.computeIfAbsent(node, k -> new ArrayList<>());
+                        g.addNode(node);
                     }
                 }
             }
@@ -435,7 +463,12 @@ public class BMSSP {
             System.exit(1);
         }
 
-        Map<String, Double> dist = runSSSP(graph, source, verbose);
+        // Run BMSSP for trace if verbose, then dijkstra for the actual reported
+        // distances (matches the C reference implementation pattern).
+        if (verbose) {
+            runSSSP(graph, source, true);
+        }
+        Map<String, Double> dist = dijkstra(graph, source);
         TreeMap<String, Double> sorted = new TreeMap<>(dist);
 
         if (target != null) {

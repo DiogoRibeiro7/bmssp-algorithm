@@ -1,0 +1,37 @@
+cabal-version:      2.0
+name:               bmssp
+version:            0.1.0.0
+synopsis:           Haskell implementation of BMSSP shortest paths
+description:        Reference implementation of Breaking the Sorting Barrier
+                    for Directed Single-Source Shortest Paths (Duan et al., 2025).
+license:            MIT
+author:             Diogo Ribeiro
+build-type:         Simple
+
+library
+    exposed-modules:  BMSSP
+    hs-source-dirs:   src
+    default-language: Haskell2010
+    build-depends:    base >= 4.14 && < 5,
+                      containers >= 0.6,
+                      pqueue >= 1.4
+    ghc-options:      -Wall
+
+executable bmssp
+    main-is:          Main.hs
+    hs-source-dirs:   app
+    default-language: Haskell2010
+    build-depends:    base >= 4.14 && < 5,
+                      bmssp,
+                      containers >= 0.6
+    ghc-options:      -Wall
+
+test-suite bmssp-test
+    type:             exitcode-stdio-1.0
+    main-is:          Spec.hs
+    hs-source-dirs:   test
+    default-language: Haskell2010
+    build-depends:    base >= 4.14 && < 5,
+                      bmssp,
+                      containers >= 0.6
+    ghc-options:      -Wall
