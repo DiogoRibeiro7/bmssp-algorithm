@@ -43,7 +43,7 @@ This document outlines the planned development direction for the BMSSP Algorithm
 ## Phase 5 -- Community and Research
 
 - [x] C++ implementation
-- [x] Python implementation (with NumPy/SciPy for adjacency storage)
+- [ ] ~~Python implementation~~ (removed — not needed)
 - [x] Haskell or OCaml implementation (functional perspective)
 - [x] Integration examples with popular graph libraries (NetworkX, JGraphT, petgraph)
 - [x] Tutorial series: "Understanding BMSSP step by step"

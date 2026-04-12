@@ -34,11 +34,6 @@ services:
       context: ./implementations/julia
     image: bmssp-julia:latest
 
-  python:
-    build:
-      context: ./implementations/python
-    image: bmssp-python:latest
-
   haskell:
     build:
       context: ./implementations/haskell
