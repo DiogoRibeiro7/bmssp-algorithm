@@ -44,7 +44,7 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "0"
         run: go build -ldflags="-s -w" -o bmssp-go-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./cmd/bmssp/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: bmssp-go-${{ matrix.goos }}-${{ matrix.goarch }}
           path: implementations/go/bmssp-go-*
@@ -68,7 +68,7 @@ jobs:
       - name: Build
         run: |
           gcc -Wall -Wextra -std=c11 -O2 bmssp.c -lm -o bmssp-c-${{ matrix.suffix }}${{ matrix.os == 'windows-latest' && '.exe' || '' }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: bmssp-c-${{ matrix.suffix }}
           path: implementations/c/bmssp-c-*
@@ -107,7 +107,7 @@ jobs:
       - name: Rename binary
         shell: bash
         run: cp target/${{ matrix.target }}/release/bmssp${{ matrix.ext }} bmssp-rust-${{ matrix.suffix }}${{ matrix.ext }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: bmssp-rust-${{ matrix.suffix }}
           path: implementations/rust/bmssp-rust-*
@@ -131,7 +131,7 @@ jobs:
         run: brew install gcc
       - name: Build
         run: gfortran -Wall -Wextra -std=f2008 -O2 bmssp.f90 -o bmssp-fortran-${{ matrix.suffix }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: bmssp-fortran-${{ matrix.suffix }}
           path: implementations/fortran/bmssp-fortran-*
@@ -151,7 +151,7 @@ jobs:
         run: |
           javac BMSSP.java
           jar cfe bmssp-java.jar BMSSP *.class
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: bmssp-java
           path: implementations/java/bmssp-java.jar

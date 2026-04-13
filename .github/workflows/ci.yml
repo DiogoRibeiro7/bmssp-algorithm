@@ -30,7 +30,7 @@ jobs:
       - name: Report coverage
         run: go tool cover -func=coverage.out
       - name: Upload coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: go-coverage
           path: implementations/go/coverage.out
@@ -82,7 +82,7 @@ jobs:
       - name: Generate coverage
         run: cargo tarpaulin --out xml --output-dir coverage/
       - name: Upload coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rust-coverage
           path: implementations/rust/coverage/cobertura.xml
