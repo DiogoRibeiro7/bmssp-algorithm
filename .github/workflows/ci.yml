@@ -53,7 +53,7 @@ jobs:
         continue-on-error: true
       - name: Compile
         run: gcc -Wall -Wextra -std=c11 bmssp.c -lm -o bmssp
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: pip install pytest
@@ -103,7 +103,7 @@ jobs:
         run: javac BMSSP.java BMSSPTest.java
       - name: Run tests
         run: java BMSSPTest
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: pip install pytest
@@ -121,7 +121,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y gfortran
       - name: Compile
         run: gfortran -Wall -Wextra -std=f2008 bmssp.f90 -o bmssp
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: pip install pytest
@@ -172,7 +172,7 @@ jobs:
           version: "1.9"
       - name: Install Julia dependencies
         run: julia -e 'using Pkg; Pkg.activate("implementations/julia/BMSSPAlgorithm"); Pkg.instantiate()'
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Run cross-language validation
