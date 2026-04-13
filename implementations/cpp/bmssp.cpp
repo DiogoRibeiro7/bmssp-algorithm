@@ -340,6 +340,18 @@ void run_sssp(const Graph& graph, int source, std::vector<double>& d_hat,
     bmssp(graph, l, INF, S, d_hat, pred, complete, k, t, verbose);
 }
 
+void run_sssp_with_params(const Graph& graph, int source, std::vector<double>& d_hat,
+                          std::vector<int>& pred, int k, int t, int l, bool verbose) {
+    int n = graph.n;
+    d_hat.assign(n, INF);
+    pred.assign(n, -1);
+    d_hat[source] = 0.0;
+    pred[source] = source;
+    std::set<int> complete = {source};
+    std::set<int> S = {source};
+    bmssp(graph, l, INF, S, d_hat, pred, complete, k, t, verbose);
+}
+
 void dijkstra(const Graph& graph, int source, std::vector<double>& dist,
               std::vector<int>& pred) {
     int n = graph.n;
@@ -546,6 +558,7 @@ void print_usage() {
 int main(int argc, char** argv) {
     bool verbose = false;
     bool json_out = false;
+    int param_k = 0, param_t = 0, param_l = 0;
     std::vector<std::string> positional;
 
     for (int i = 1; i < argc; i++) {
@@ -558,6 +571,15 @@ int main(int argc, char** argv) {
         } else if (arg == "-h" || arg == "--help") {
             bmssp::print_usage();
             return 0;
+        } else if (arg == "--k") {
+            if (i + 1 >= argc) { std::cerr << "bmssp: --k requires a value\n"; return 2; }
+            param_k = std::stoi(argv[++i]);
+        } else if (arg == "--t") {
+            if (i + 1 >= argc) { std::cerr << "bmssp: --t requires a value\n"; return 2; }
+            param_t = std::stoi(argv[++i]);
+        } else if (arg == "--l") {
+            if (i + 1 >= argc) { std::cerr << "bmssp: --l requires a value\n"; return 2; }
+            param_l = std::stoi(argv[++i]);
         } else if (arg[0] == '-') {
             std::cerr << "bmssp: unknown option '" << arg << "'\n";
             return 2;
@@ -603,14 +625,25 @@ int main(int argc, char** argv) {
 
     std::vector<double> dist;
     std::vector<int> pred;
-    // Use BMSSP for trace/verbose, then dijkstra for the actual reported distances
-    // (matching the C reference implementation's pattern).
-    if (verbose) {
-        std::vector<double> trace_dist;
-        std::vector<int> trace_pred;
-        bmssp::run_sssp(gn_ptr->graph, source_idx, trace_dist, trace_pred, true);
+    bool custom_params = param_k > 0 || param_t > 0 || param_l > 0;
+
+    if (custom_params) {
+        int n = gn_ptr->graph.n;
+        double log2n = std::log2((double)n);
+        int k = param_k > 0 ? param_k : std::max(1, (int)std::pow(log2n, 1.0 / 3.0));
+        int t = param_t > 0 ? param_t : std::max(1, (int)std::pow(log2n, 2.0 / 3.0));
+        int l = param_l > 0 ? param_l : std::max(1, (int)std::ceil(log2n / t));
+        bmssp::run_sssp_with_params(gn_ptr->graph, source_idx, dist, pred, k, t, l, verbose);
+    } else {
+        // Use BMSSP for trace/verbose, then dijkstra for the actual reported distances
+        // (matching the C reference implementation's pattern).
+        if (verbose) {
+            std::vector<double> trace_dist;
+            std::vector<int> trace_pred;
+            bmssp::run_sssp(gn_ptr->graph, source_idx, trace_dist, trace_pred, true);
+        }
+        bmssp::dijkstra(gn_ptr->graph, source_idx, dist, pred);
     }
-    bmssp::dijkstra(gn_ptr->graph, source_idx, dist, pred);
 
     // Sort vertices by name
     std::vector<int> order(gn_ptr->graph.n);

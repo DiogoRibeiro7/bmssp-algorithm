@@ -19,11 +19,14 @@ version = "0.1.0"
 data Options = Options
   { optVerbose :: Bool
   , optJson    :: Bool
+  , optK       :: Int  -- 0 means use default
+  , optT       :: Int
+  , optL       :: Int
   , optPos     :: [String]
   } deriving (Show)
 
 defaultOptions :: Options
-defaultOptions = Options False False []
+defaultOptions = Options False False 0 0 0 []
 
 parseArgs :: [String] -> IO Options
 parseArgs = go defaultOptions
@@ -32,6 +35,15 @@ parseArgs = go defaultOptions
     go opts (a:rest) = case a of
       "--verbose" -> go opts { optVerbose = True } rest
       "--json"    -> go opts { optJson = True } rest
+      "--k"       -> case rest of
+                       (v:r) -> go opts { optK = read v } r
+                       _     -> hPutStrLn stderr "bmssp: --k requires a value" >> exitWith (ExitFailure 2)
+      "--t"       -> case rest of
+                       (v:r) -> go opts { optT = read v } r
+                       _     -> hPutStrLn stderr "bmssp: --t requires a value" >> exitWith (ExitFailure 2)
+      "--l"       -> case rest of
+                       (v:r) -> go opts { optL = read v } r
+                       _     -> hPutStrLn stderr "bmssp: --l requires a value" >> exitWith (ExitFailure 2)
       "-V"        -> putStrLn ("bmssp (Haskell) " ++ version) >> exitSuccess
       "--version" -> putStrLn ("bmssp (Haskell) " ++ version) >> exitSuccess
       "-h"        -> printUsage >> exitSuccess

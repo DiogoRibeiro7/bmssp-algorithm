@@ -440,7 +440,11 @@ func RunSSSP(graph *Graph, source string, verbose bool) map[string]float64 {
 	k := int(math.Max(1, math.Pow(math.Log2(float64(n)), 1.0/3.0)))
 	t := int(math.Max(1, math.Pow(math.Log2(float64(n)), 2.0/3.0)))
 	l := int(math.Ceil(math.Log2(float64(n)) / float64(t)))
+	return RunSSSPWithParams(graph, source, k, t, l, verbose)
+}
 
+// RunSSSPWithParams runs BMSSP with explicit k, t, l parameters.
+func RunSSSPWithParams(graph *Graph, source string, k, t, l int, verbose bool) map[string]float64 {
 	dHat := make(map[string]float64)
 	for v := range graph.Adj {
 		dHat[v] = math.Inf(1)

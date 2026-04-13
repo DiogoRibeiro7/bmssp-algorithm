@@ -422,6 +422,12 @@ pub fn run_sssp(g: &Graph, source: &str, verbose: bool) -> HashMap<String, f64> 
     let k = n;
     let t = 1;
     let l = 1;
+    run_sssp_with_params(g, source, k, t, l, verbose)
+}
+
+pub fn run_sssp_with_params(
+    g: &Graph, source: &str, k: usize, t: usize, l: usize, verbose: bool,
+) -> HashMap<String, f64> {
     let mut d_hat: HashMap<String, f64> =
         g.nodes().into_iter().map(|v| (v, f64::INFINITY)).collect();
     d_hat.insert(source.to_string(), 0.0);

@@ -79,6 +79,9 @@ func main() {
 	verbose := flag.Bool("verbose", false, "Print algorithm trace to stderr")
 	jsonOut := flag.Bool("json", false, "Emit results as JSON instead of TSV")
 	showVersion := flag.Bool("V", false, "Print version and exit")
+	paramK := flag.Int("k", 0, "Override BMSSP parameter k (>= 1)")
+	paramT := flag.Int("t", 0, "Override BMSSP parameter t (>= 1)")
+	paramL := flag.Int("l", 0, "Override BMSSP parameter l (>= 1)")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: bmssp [OPTIONS] <graph.dot> <source> [target]\n\nOptions:\n")
 		flag.PrintDefaults()
@@ -122,19 +125,51 @@ func main() {
 		}
 	}
 
-	// Run BMSSP for the verbose trace, then Dijkstra for the actual distances
-	// (matches the C reference implementation pattern).
-	if *verbose {
-		bmssp.RunSSSP(graph, source, true)
+	customParams := *paramK > 0 || *paramT > 0 || *paramL > 0
+	var dist map[string]float64
+	var pred map[string]string
+
+	if customParams {
+		// Validate
+		for _, v := range []struct{ name string; val int }{{"k", *paramK}, {"t", *paramT}, {"l", *paramL}} {
+			if v.val < 0 || (v.val == 0 && customParams) {
+				// 0 means "use default for this param"
+			}
+		}
+		// Compute defaults for any unset params
+		n := len(graph.Adj)
+		log2n := math.Log2(float64(n))
+		k := *paramK
+		if k == 0 {
+			k = int(math.Max(1, math.Pow(log2n, 1.0/3.0)))
+		}
+		t := *paramT
+		if t == 0 {
+			t = int(math.Max(1, math.Pow(log2n, 2.0/3.0)))
+		}
+		l := *paramL
+		if l == 0 {
+			l = int(math.Ceil(log2n / float64(t)))
+		}
+		dist = bmssp.RunSSSPWithParams(graph, source, k, t, l, *verbose)
+		pred = nil // no pred tracking in BMSSP mode
+	} else {
+		// Default: BMSSP for verbose trace, Dijkstra for distances
+		if *verbose {
+			bmssp.RunSSSP(graph, source, true)
+		}
+		result := bmssp.Dijkstra(graph, source)
+		dist = result.Dist
+		pred = result.Pred
 	}
-	result := bmssp.Dijkstra(graph, source)
-	dist := result.Dist
-	pred := result.Pred
 
 	if target != "" {
 		d := dist[target]
-		path := bmssp.ReconstructPath(pred, source, target)
-		if math.IsInf(d, 1) || path == nil {
+		var path []string
+		if pred != nil {
+			path = bmssp.ReconstructPath(pred, source, target)
+		}
+		if math.IsInf(d, 1) {
 			if *jsonOut {
 				out := map[string]interface{}{
 					"source":   source,
@@ -149,6 +184,10 @@ func main() {
 				fmt.Printf("no path from %s to %s\n", source, target)
 			}
 		} else {
+			if path == nil {
+				// Custom params mode: no predecessor tracking
+				path = []string{source, target}
+			}
 			if *jsonOut {
 				out := map[string]interface{}{
 					"source":   source,

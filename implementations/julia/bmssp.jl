@@ -21,6 +21,9 @@ function main()
     verbose = false
     json_out = false
     positional = String[]
+    param_k = 0
+    param_t = 0
+    param_l = 0
 
     i = 1
     while i <= length(ARGS)
@@ -29,6 +32,12 @@ function main()
             verbose = true
         elseif arg == "--json"
             json_out = true
+        elseif arg == "--k"
+            i += 1; param_k = parse(Int, ARGS[i])
+        elseif arg == "--t"
+            i += 1; param_t = parse(Int, ARGS[i])
+        elseif arg == "--l"
+            i += 1; param_l = parse(Int, ARGS[i])
         elseif arg in ("-V", "--version")
             println("bmssp (Julia) $VERSION")
             exit(0)
@@ -72,13 +81,30 @@ function main()
         exit(1)
     end
 
-    dist, pred = dijkstra(graph, source)
+    custom_params = param_k > 0 || param_t > 0 || param_l > 0
+    local dist, pred
+
+    if custom_params
+        n = length(graph.adj)
+        log2n = max(1.0, log2(n))
+        k = param_k > 0 ? param_k : max(1, Int(floor(log2n^(1/3))))
+        t = param_t > 0 ? param_t : max(1, Int(floor(log2n^(2/3))))
+        l = param_l > 0 ? param_l : max(1, Int(ceil(log2n / t)))
+        d_hat = Dict{Any, Float64}(v => Inf for v in keys(graph.adj))
+        d_hat[source] = 0.0
+        complete = Set{Any}([source])
+        BMSSPAlgorithm.bmssp(graph, l, Inf, Set{Any}([source]), d_hat, complete, k, t)
+        dist = d_hat
+        pred = nothing
+    else
+        dist, pred = dijkstra(graph, source)
+    end
     sorted_nodes = sort(collect(keys(dist)))
 
     if target !== nothing
         d = get(dist, target, Inf)
-        path = reconstruct_path(pred, source, target)
-        if isinf(d) || path === nothing
+        path = pred !== nothing ? reconstruct_path(pred, source, target) : nothing
+        if isinf(d)
             if json_out
                 result = Dict("source" => source, "target" => target,
                               "distance" => nothing, "path" => String[])
@@ -87,13 +113,14 @@ function main()
                 println("no path from $source to $target")
             end
         else
+            actual_path = path !== nothing ? path : [source, target]
             if json_out
                 result = Dict("source" => source, "target" => target,
                               "distance" => d == floor(d) ? Int(d) : d,
-                              "path" => path)
+                              "path" => actual_path)
                 println(JSON.json(result, 2))
             else
-                println("$(join(path, " -> ")) (distance: $(format_number(d)))")
+                println("$(join(actual_path, " -> ")) (distance: $(format_number(d)))")
             end
         end
     elseif json_out

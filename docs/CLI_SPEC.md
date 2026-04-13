@@ -23,8 +23,13 @@ bmssp [OPTIONS] <graph.dot> <source> [target]
 | `--verbose` | Print algorithm trace to stderr (FindPivots, BMSSP recursion levels, BaseCase calls). |
 | `--json` | Emit results as JSON instead of TSV. |
 | `--algorithm <name>` | (Optional, future) Switch between `bmssp` (default) and `dijkstra`. |
+| `--k <int>` | Override the `k` parameter (pivot count / base-case size). Default: `⌊log^{1/3} n⌋`. Must be ≥ 1. |
+| `--t <int>` | Override the `t` parameter (recursion branching exponent). Default: `⌊log^{2/3} n⌋`. Must be ≥ 1. |
+| `--l <int>` | Override the `l` parameter (recursion levels). Default: `⌈log n / t⌉`. Must be ≥ 1. |
 | `-h`, `--help` | Show usage and exit. |
 | `-V`, `--version` | Print version and exit. |
+
+When `--k`, `--t`, or `--l` are supplied, the BMSSP algorithm runs with those parameters and its distances are reported directly (Dijkstra is **not** used as a fallback). This enables experimentation with parameter sensitivity.
 
 ## Output Format
 

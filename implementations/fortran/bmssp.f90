@@ -341,12 +341,17 @@ program main
   integer :: name_count, ierr, source_idx, target_idx
   integer :: i, nargs, iarg
   logical :: verbose, json_out, has_target
+  logical :: custom_params
+  integer :: param_k, param_t, param_l
   character(len=MAX_NAME_LEN) :: sorted_names(MAX_NODES)
   integer :: sorted_idx(MAX_NODES)
   integer :: path(MAX_NODES), path_len, current
 
   verbose = .false.
   json_out = .false.
+  param_k = 0
+  param_t = 0
+  param_l = 0
   has_target = .false.
   dot_file = ''
   source_name = ''
@@ -372,6 +377,18 @@ program main
       case ('-h', '--help')
         write(0, '(A)') 'Usage: bmssp [OPTIONS] <graph.dot> <source> [target]'
         stop
+      case ('--k')
+        iarg = iarg + 1
+        call get_command_argument(iarg, arg)
+        read(arg, *) param_k
+      case ('--t')
+        iarg = iarg + 1
+        call get_command_argument(iarg, arg)
+        read(arg, *) param_t
+      case ('--l')
+        iarg = iarg + 1
+        call get_command_argument(iarg, arg)
+        read(arg, *) param_l
       case default
         if (arg(1:1) == '-') then
           write(0, '(A,A,A)') "bmssp: unknown option '", trim(arg), "'"
@@ -421,7 +438,14 @@ program main
     end if
   end if
 
-  call run_sssp(g, source_idx, dist, pred)
+  custom_params = (param_k > 0) .or. (param_t > 0) .or. (param_l > 0)
+  if (custom_params) then
+    ! Use BMSSP with custom parameters (no pred tracking)
+    call bmssp(g, max(param_l, 1), huge(0.0), (/source_idx/), 1, dist)
+    pred = -1
+  else
+    call run_sssp(g, source_idx, dist, pred)
+  end if
 
   ! Sort names alphabetically for output
   do i = 1, name_count
@@ -431,7 +455,7 @@ program main
   call sort_names(sorted_names, sorted_idx, name_count)
 
   if (has_target) then
-    if (dist(target_idx) > huge(0.0)/2 .or. pred(target_idx) == -1) then
+    if (dist(target_idx) > huge(0.0)/2) then
       if (json_out) then
         print '(A)', '{'
         print '(A,A,A)', '  "source": "', trim(source_name), '",'
@@ -445,15 +469,22 @@ program main
     else
       ! Reconstruct path by backtracking through pred
       path_len = 0
-      current = target_idx
-      do while (current /= source_idx .and. path_len < name_count)
+      if (pred(target_idx) /= -1) then
+        current = target_idx
+        do while (current /= source_idx .and. path_len < name_count)
+          path_len = path_len + 1
+          path(path_len) = current
+          current = pred(current)
+          if (current == -1) exit
+        end do
         path_len = path_len + 1
-        path(path_len) = current
-        current = pred(current)
-        if (current == -1) exit
-      end do
-      path_len = path_len + 1
-      path(path_len) = source_idx
+        path(path_len) = source_idx
+      else
+        ! No pred available (custom params) — just show endpoints
+        path_len = 2
+        path(2) = source_idx
+        path(1) = target_idx
+      end if
 
       if (json_out) then
         print '(A)', '{'

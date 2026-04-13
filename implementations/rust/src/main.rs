@@ -1,4 +1,4 @@
-use bmssp::{dijkstra, reconstruct_path, run_sssp, Graph};
+use bmssp::{dijkstra, reconstruct_path, run_sssp, run_sssp_with_params, Graph};
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
@@ -65,11 +65,18 @@ fn main() {
     let mut verbose = false;
     let mut json_out = false;
     let mut positional = Vec::new();
+    let mut param_k: Option<usize> = None;
+    let mut param_t: Option<usize> = None;
+    let mut param_l: Option<usize> = None;
 
-    for arg in &args {
-        match arg.as_str() {
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
             "--verbose" => verbose = true,
             "--json" => json_out = true,
+            "--k" => { i += 1; param_k = Some(args.get(i).expect("--k requires a value").parse().expect("--k requires an integer")); }
+            "--t" => { i += 1; param_t = Some(args.get(i).expect("--t requires a value").parse().expect("--t requires an integer")); }
+            "--l" => { i += 1; param_l = Some(args.get(i).expect("--l requires a value").parse().expect("--l requires an integer")); }
             "-V" | "--version" => {
                 println!("bmssp (Rust) {}", VERSION);
                 process::exit(0);
@@ -78,13 +85,14 @@ fn main() {
                 print_usage();
                 process::exit(0);
             }
-            _ if arg.starts_with('-') => {
-                eprintln!("bmssp: unknown option '{}'", arg);
+            s if s.starts_with('-') => {
+                eprintln!("bmssp: unknown option '{}'", s);
                 print_usage();
                 process::exit(2);
             }
-            _ => positional.push(arg.as_str()),
+            _ => positional.push(args[i].as_str()),
         }
+        i += 1;
     }
 
     if positional.len() < 2 || positional.len() > 3 {
@@ -117,14 +125,27 @@ fn main() {
         }
     }
 
-    // Run BMSSP for the verbose trace, then Dijkstra for the actual distances
-    // (matches the C reference implementation pattern).
-    if verbose {
-        run_sssp(&graph, source, true);
+    let custom_params = param_k.is_some() || param_t.is_some() || param_l.is_some();
+    let (dist_owned, pred_owned);
+
+    if custom_params {
+        let n = graph.adj.len();
+        let log2n = (n as f64).log2();
+        let k = param_k.unwrap_or(std::cmp::max(1, log2n.powf(1.0 / 3.0) as usize));
+        let t = param_t.unwrap_or(std::cmp::max(1, log2n.powf(2.0 / 3.0) as usize));
+        let l = param_l.unwrap_or(std::cmp::max(1, (log2n / t as f64).ceil() as usize));
+        dist_owned = run_sssp_with_params(&graph, source, k, t, l, verbose);
+        pred_owned = std::collections::HashMap::new();
+    } else {
+        if verbose {
+            run_sssp(&graph, source, true);
+        }
+        let result = dijkstra(&graph, source);
+        dist_owned = result.dist;
+        pred_owned = result.pred;
     }
-    let result = dijkstra(&graph, source);
-    let dist = &result.dist;
-    let pred = &result.pred;
+    let dist = &dist_owned;
+    let pred = &pred_owned;
 
     // Sort by node name for deterministic output
     let sorted: BTreeMap<&String, &f64> = dist.iter().collect();

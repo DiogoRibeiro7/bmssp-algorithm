@@ -335,6 +335,19 @@ public class BMSSP {
         return dHat;
     }
 
+    /** Runs SSSP from a single source using BMSSP with explicit k, t, l parameters. */
+    public static Map<String, Double> runSSSPWithParams(Graph g, String source, int k, int t, int l, boolean verbose) {
+        Map<String, Double> dHat = new HashMap<>();
+        for (String v : g.nodes()) dHat.put(v, Double.POSITIVE_INFINITY);
+        dHat.put(source, 0.0);
+        Set<String> complete = new HashSet<>();
+        complete.add(source);
+        Set<String> S = new HashSet<>();
+        S.add(source);
+        bmssp(g, l, Double.POSITIVE_INFINITY, S, dHat, complete, k, t, verbose);
+        return dHat;
+    }
+
     /** Result of Dijkstra: distances and predecessor map. */
     public static class DijkstraResult {
         public final Map<String, Double> dist;
@@ -440,9 +453,11 @@ public class BMSSP {
     public static void main(String[] args) {
         boolean verbose = false;
         boolean jsonOut = false;
+        int paramK = 0, paramT = 0, paramL = 0;
         List<String> positional = new ArrayList<>();
 
-        for (String arg : args) {
+        for (int i = 0; i < args.length; i++) {
+            String arg = args[i];
             switch (arg) {
                 case "--verbose": verbose = true; break;
                 case "--json": jsonOut = true; break;
@@ -453,6 +468,18 @@ public class BMSSP {
                 case "-h": case "--help":
                     System.err.println("Usage: java BMSSP [OPTIONS] <graph.dot> <source> [target]");
                     System.exit(0);
+                    break;
+                case "--k":
+                    if (i + 1 >= args.length) { System.err.println("bmssp: --k requires a value"); System.exit(2); }
+                    paramK = Integer.parseInt(args[++i]);
+                    break;
+                case "--t":
+                    if (i + 1 >= args.length) { System.err.println("bmssp: --t requires a value"); System.exit(2); }
+                    paramT = Integer.parseInt(args[++i]);
+                    break;
+                case "--l":
+                    if (i + 1 >= args.length) { System.err.println("bmssp: --l requires a value"); System.exit(2); }
+                    paramL = Integer.parseInt(args[++i]);
                     break;
                 default:
                     if (arg.startsWith("-")) {
@@ -491,20 +518,33 @@ public class BMSSP {
             System.exit(1);
         }
 
-        // Run BMSSP for trace if verbose, then dijkstra for the actual reported
-        // distances (matches the C reference implementation pattern).
-        if (verbose) {
-            runSSSP(graph, source, true);
+        boolean customParams = paramK > 0 || paramT > 0 || paramL > 0;
+        Map<String, Double> dist;
+        Map<String, String> pred = null;
+
+        if (customParams) {
+            int n = graph.nodes().size();
+            double log2n = Math.log(n) / Math.log(2);
+            int k = paramK > 0 ? paramK : (int)Math.max(1.0, Math.cbrt(log2n));
+            int t = paramT > 0 ? paramT : (int)Math.max(1.0, Math.pow(log2n, 2.0/3.0));
+            int l = paramL > 0 ? paramL : (int)Math.ceil(log2n / t);
+            dist = runSSSPWithParams(graph, source, k, t, l, verbose);
+        } else {
+            // Run BMSSP for trace if verbose, then dijkstra for the actual reported
+            // distances (matches the C reference implementation pattern).
+            if (verbose) {
+                runSSSP(graph, source, true);
+            }
+            DijkstraResult dr = dijkstra(graph, source);
+            dist = dr.dist;
+            pred = dr.pred;
         }
-        DijkstraResult dr = dijkstra(graph, source);
-        Map<String, Double> dist = dr.dist;
-        Map<String, String> pred = dr.pred;
         TreeMap<String, Double> sorted = new TreeMap<>(dist);
 
         if (target != null) {
             double d = dist.getOrDefault(target, Double.POSITIVE_INFINITY);
-            List<String> path = reconstructPath(pred, source, target);
-            if (Double.isInfinite(d) || path == null) {
+            List<String> path = pred != null ? reconstructPath(pred, source, target) : null;
+            if (Double.isInfinite(d) || (pred != null && path == null)) {
                 if (jsonOut) {
                     System.out.println("{");
                     System.out.println("  \"source\": \"" + source + "\",");
@@ -517,20 +557,28 @@ public class BMSSP {
                 }
             } else {
                 if (jsonOut) {
-                    StringBuilder pathJson = new StringBuilder("[");
-                    for (int pi = 0; pi < path.size(); pi++) {
-                        if (pi > 0) pathJson.append(", ");
-                        pathJson.append("\"").append(path.get(pi)).append("\"");
-                    }
-                    pathJson.append("]");
                     System.out.println("{");
                     System.out.println("  \"source\": \"" + source + "\",");
                     System.out.println("  \"target\": \"" + target + "\",");
                     System.out.println("  \"distance\": " + formatNumber(d) + ",");
-                    System.out.println("  \"path\": " + pathJson);
+                    if (path != null) {
+                        StringBuilder pathJson = new StringBuilder("[");
+                        for (int pi = 0; pi < path.size(); pi++) {
+                            if (pi > 0) pathJson.append(", ");
+                            pathJson.append("\"").append(path.get(pi)).append("\"");
+                        }
+                        pathJson.append("]");
+                        System.out.println("  \"path\": " + pathJson);
+                    } else {
+                        System.out.println("  \"path\": []");
+                    }
                     System.out.println("}");
                 } else {
-                    System.out.println(String.join(" -> ", path) + " (distance: " + formatNumber(d) + ")");
+                    if (path != null) {
+                        System.out.println(String.join(" -> ", path) + " (distance: " + formatNumber(d) + ")");
+                    } else {
+                        System.out.println(source + " -> " + target + " (distance: " + formatNumber(d) + ")");
+                    }
                 }
             }
         } else if (jsonOut) {
