@@ -452,15 +452,23 @@ func RunSSSP(graph *Graph, source string, verbose bool) map[string]float64 {
 	return dHat
 }
 
+// DijkstraResult holds shortest distances and predecessor map.
+type DijkstraResult struct {
+	Dist map[string]float64
+	Pred map[string]string
+}
+
 // Dijkstra computes shortest paths from source using a standard Dijkstra
-// algorithm. This is used by the CLI to provide accurate distances (matching
-// the C reference implementation pattern).
-func Dijkstra(graph *Graph, source string) map[string]float64 {
+// algorithm, tracking predecessors for path reconstruction.
+func Dijkstra(graph *Graph, source string) DijkstraResult {
 	dist := make(map[string]float64)
+	pred := make(map[string]string)
 	for v := range graph.Adj {
 		dist[v] = math.Inf(1)
+		pred[v] = ""
 	}
 	dist[source] = 0
+	pred[source] = source
 	visited := make(map[string]struct{})
 	h := &nodeDistHeap{}
 	heap.Init(h)
@@ -475,10 +483,35 @@ func Dijkstra(graph *Graph, source string) map[string]float64 {
 			alt := nd.dist + e.W
 			if alt < dist[e.To] {
 				dist[e.To] = alt
+				pred[e.To] = nd.node
 				heap.Push(h, nodeDist{alt, e.To})
 			}
 		}
 	}
-	return dist
+	return DijkstraResult{Dist: dist, Pred: pred}
+}
+
+// ReconstructPath returns the shortest path from source to target as a slice
+// of node names. Returns nil if the target is unreachable.
+func ReconstructPath(pred map[string]string, source, target string) []string {
+	if pred[target] == "" {
+		return nil
+	}
+	var path []string
+	current := target
+	for current != source {
+		path = append(path, current)
+		next := pred[current]
+		if next == "" || next == current {
+			return nil
+		}
+		current = next
+	}
+	path = append(path, source)
+	// Reverse
+	for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
+		path[i], path[j] = path[j], path[i]
+	}
+	return path
 }
 

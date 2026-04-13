@@ -127,11 +127,14 @@ func main() {
 	if *verbose {
 		bmssp.RunSSSP(graph, source, true)
 	}
-	dist := bmssp.Dijkstra(graph, source)
+	result := bmssp.Dijkstra(graph, source)
+	dist := result.Dist
+	pred := result.Pred
 
 	if target != "" {
 		d := dist[target]
-		if math.IsInf(d, 1) {
+		path := bmssp.ReconstructPath(pred, source, target)
+		if math.IsInf(d, 1) || path == nil {
 			if *jsonOut {
 				out := map[string]interface{}{
 					"source":   source,
@@ -151,13 +154,19 @@ func main() {
 					"source":   source,
 					"target":   target,
 					"distance": d,
-					"path":     []string{source, target},
+					"path":     path,
 				}
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				enc.Encode(out)
 			} else {
-				fmt.Printf("%s -> %s (distance: %g)\n", source, target, d)
+				for i, n := range path {
+					if i > 0 {
+						fmt.Print(" -> ")
+					}
+					fmt.Print(n)
+				}
+				fmt.Printf(" (distance: %g)\n", d)
 			}
 		}
 	} else {

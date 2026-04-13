@@ -499,6 +499,28 @@ GraphWithNames load_graph_from_dot(const std::string& filename) {
     return result;
 }
 
+// -------- Path reconstruction --------
+
+std::vector<std::string> reconstruct_path(const std::vector<int>& pred,
+                                          const std::vector<std::string>& names,
+                                          int source, int target) {
+    if (pred[target] == -1) return {};
+    std::vector<int> rpath;
+    int current = target;
+    while (current != source) {
+        rpath.push_back(current);
+        int next = pred[current];
+        if (next == -1 || next == current) return {};
+        current = next;
+    }
+    rpath.push_back(source);
+    std::vector<std::string> path;
+    for (int i = (int)rpath.size() - 1; i >= 0; i--) {
+        path.push_back(names[rpath[i]]);
+    }
+    return path;
+}
+
 // -------- CLI Output --------
 
 std::string format_number(double v) {
@@ -599,7 +621,8 @@ int main(int argc, char** argv) {
 
     if (target_idx >= 0) {
         double d = dist[target_idx];
-        if (std::isinf(d)) {
+        auto path = bmssp::reconstruct_path(pred, gn_ptr->names, source_idx, target_idx);
+        if (std::isinf(d) || path.empty()) {
             if (json_out) {
                 std::cout << "{\n  \"source\": \"" << source_name << "\",\n";
                 std::cout << "  \"target\": \"" << target_name << "\",\n";
@@ -612,10 +635,18 @@ int main(int argc, char** argv) {
                 std::cout << "{\n  \"source\": \"" << source_name << "\",\n";
                 std::cout << "  \"target\": \"" << target_name << "\",\n";
                 std::cout << "  \"distance\": " << bmssp::format_number(d) << ",\n";
-                std::cout << "  \"path\": [\"" << source_name << "\", \"" << target_name << "\"]\n}\n";
+                std::cout << "  \"path\": [";
+                for (size_t i = 0; i < path.size(); i++) {
+                    if (i > 0) std::cout << ", ";
+                    std::cout << "\"" << path[i] << "\"";
+                }
+                std::cout << "]\n}\n";
             } else {
-                std::cout << source_name << " -> " << target_name
-                          << " (distance: " << bmssp::format_number(d) << ")\n";
+                for (size_t i = 0; i < path.size(); i++) {
+                    if (i > 0) std::cout << " -> ";
+                    std::cout << path[i];
+                }
+                std::cout << " (distance: " << bmssp::format_number(d) << ")\n";
             }
         }
     } else if (json_out) {

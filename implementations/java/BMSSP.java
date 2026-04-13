@@ -335,11 +335,22 @@ public class BMSSP {
         return dHat;
     }
 
-    /** Standard Dijkstra (used by the CLI for accurate distances). */
-    public static Map<String, Double> dijkstra(Graph g, String source) {
+    /** Result of Dijkstra: distances and predecessor map. */
+    public static class DijkstraResult {
+        public final Map<String, Double> dist;
+        public final Map<String, String> pred;
+        DijkstraResult(Map<String, Double> dist, Map<String, String> pred) {
+            this.dist = dist; this.pred = pred;
+        }
+    }
+
+    /** Standard Dijkstra (used by the CLI for accurate distances), tracking predecessors. */
+    public static DijkstraResult dijkstra(Graph g, String source) {
         Map<String, Double> dist = new HashMap<>();
+        Map<String, String> pred = new HashMap<>();
         for (String v : g.nodes()) dist.put(v, Double.POSITIVE_INFINITY);
         dist.put(source, 0.0);
+        pred.put(source, source);
         PriorityQueue<NodeDist> heap = new PriorityQueue<>();
         heap.add(new NodeDist(source, 0.0));
         Set<String> visited = new HashSet<>();
@@ -351,11 +362,28 @@ public class BMSSP {
                 double alt = nd.dist + e.w;
                 if (alt < dist.getOrDefault(e.to, Double.POSITIVE_INFINITY)) {
                     dist.put(e.to, alt);
+                    pred.put(e.to, nd.node);
                     heap.add(new NodeDist(e.to, alt));
                 }
             }
         }
-        return dist;
+        return new DijkstraResult(dist, pred);
+    }
+
+    /** Reconstruct the shortest path from source to target. Returns null if unreachable. */
+    public static List<String> reconstructPath(Map<String, String> pred, String source, String target) {
+        if (!pred.containsKey(target)) return null;
+        List<String> path = new ArrayList<>();
+        String current = target;
+        while (!current.equals(source)) {
+            path.add(current);
+            String next = pred.get(current);
+            if (next == null || next.equals(current)) return null;
+            current = next;
+        }
+        path.add(source);
+        Collections.reverse(path);
+        return path;
     }
 
     private static final String VERSION = "0.1.0";
@@ -468,12 +496,15 @@ public class BMSSP {
         if (verbose) {
             runSSSP(graph, source, true);
         }
-        Map<String, Double> dist = dijkstra(graph, source);
+        DijkstraResult dr = dijkstra(graph, source);
+        Map<String, Double> dist = dr.dist;
+        Map<String, String> pred = dr.pred;
         TreeMap<String, Double> sorted = new TreeMap<>(dist);
 
         if (target != null) {
             double d = dist.getOrDefault(target, Double.POSITIVE_INFINITY);
-            if (Double.isInfinite(d)) {
+            List<String> path = reconstructPath(pred, source, target);
+            if (Double.isInfinite(d) || path == null) {
                 if (jsonOut) {
                     System.out.println("{");
                     System.out.println("  \"source\": \"" + source + "\",");
@@ -486,14 +517,20 @@ public class BMSSP {
                 }
             } else {
                 if (jsonOut) {
+                    StringBuilder pathJson = new StringBuilder("[");
+                    for (int pi = 0; pi < path.size(); pi++) {
+                        if (pi > 0) pathJson.append(", ");
+                        pathJson.append("\"").append(path.get(pi)).append("\"");
+                    }
+                    pathJson.append("]");
                     System.out.println("{");
                     System.out.println("  \"source\": \"" + source + "\",");
                     System.out.println("  \"target\": \"" + target + "\",");
                     System.out.println("  \"distance\": " + formatNumber(d) + ",");
-                    System.out.println("  \"path\": [\"" + source + "\", \"" + target + "\"]");
+                    System.out.println("  \"path\": " + pathJson);
                     System.out.println("}");
                 } else {
-                    System.out.println(source + " -> " + target + " (distance: " + formatNumber(d) + ")");
+                    System.out.println(String.join(" -> ", path) + " (distance: " + formatNumber(d) + ")");
                 }
             }
         } else if (jsonOut) {

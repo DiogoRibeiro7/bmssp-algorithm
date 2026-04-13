@@ -21,6 +21,7 @@ module BMSSP
   , neighbors
     -- * Algorithms
   , dijkstra
+  , reconstructPath
   , runSSSP
     -- * IO
   , loadGraphFromDot
@@ -59,29 +60,51 @@ addEdge u v w g
 neighbors :: Graph -> String -> [(String, Double)]
 neighbors g u = Map.findWithDefault [] u (gAdj g)
 
+-- | Dijkstra result: distance map and predecessor map.
+data DijkstraResult = DijkstraResult
+  { drDist :: !(Map String Double)
+  , drPred :: !(Map String String)
+  } deriving (Show)
+
 -- | Standard Dijkstra using Data.PQueue.Min as the priority queue.
--- Returns a Map from node to distance.
-dijkstra :: Graph -> String -> Map String Double
-dijkstra g source = go initDist Set.empty initQueue
+-- Returns distances and predecessors.
+dijkstra :: Graph -> String -> DijkstraResult
+dijkstra g source = go initDist initPred Set.empty initQueue
   where
     initDist  = Map.insert source 0 (Map.fromSet (const (1/0)) (gNodes g))
+    initPred  = Map.singleton source source
     initQueue = PQ.singleton (Entry 0 source)
 
-    go dist visited q = case PQ.minView q of
-      Nothing -> dist
+    go dist prd visited q = case PQ.minView q of
+      Nothing -> DijkstraResult dist prd
       Just (Entry d u, rest)
-        | u `Set.member` visited -> go dist visited rest
+        | u `Set.member` visited -> go dist prd visited rest
         | otherwise ->
             let visited' = Set.insert u visited
-                (dist', q') = foldl' (relax d) (dist, rest) (neighbors g u)
-            in go dist' visited' q'
+                (dist', prd', q') = foldl' (relax d u) (dist, prd, rest) (neighbors g u)
+            in go dist' prd' visited' q'
 
-    relax du (d, qq) (v, w) =
+    relax du uname (d, prd, qq) (v, w) =
       let alt  = du + w
           curr = Map.findWithDefault (1/0) v d
       in if alt < curr
-           then (Map.insert v alt d, PQ.insert (Entry alt v) qq)
-           else (d, qq)
+           then (Map.insert v alt d, Map.insert v uname prd, PQ.insert (Entry alt v) qq)
+           else (d, prd, qq)
+
+-- | Reconstruct shortest path from source to target using predecessor map.
+-- Returns Nothing if target is unreachable.
+reconstructPath :: Map String String -> String -> String -> Maybe [String]
+reconstructPath prd source target = case Map.lookup target prd of
+  Nothing -> Nothing
+  Just _  -> go target []
+  where
+    go current acc
+      | current == source = Just (source : acc)
+      | otherwise = case Map.lookup current prd of
+          Nothing -> Nothing
+          Just prev
+            | prev == current -> Nothing
+            | otherwise -> go prev (current : acc)
 
 -- | Priority queue entry with distance-only ordering.
 data Entry = Entry !Double !String deriving (Show, Eq)
@@ -94,7 +117,7 @@ instance Ord Entry where
 -- A full functional BMSSP would require persistent data structures throughout
 -- the recursive structure, which is interesting but tangential to demonstrating
 -- correctness.
-runSSSP :: Graph -> String -> Map String Double
+runSSSP :: Graph -> String -> DijkstraResult
 runSSSP = dijkstra
 
 -- | Parse a DOT file into a Graph. Supports the subset of DOT used by the

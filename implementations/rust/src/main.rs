@@ -1,4 +1,4 @@
-use bmssp::{dijkstra, run_sssp, Graph};
+use bmssp::{dijkstra, reconstruct_path, run_sssp, Graph};
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
@@ -122,14 +122,17 @@ fn main() {
     if verbose {
         run_sssp(&graph, source, true);
     }
-    let dist = dijkstra(&graph, source);
+    let result = dijkstra(&graph, source);
+    let dist = &result.dist;
+    let pred = &result.pred;
 
     // Sort by node name for deterministic output
     let sorted: BTreeMap<&String, &f64> = dist.iter().collect();
 
     if let Some(t) = target {
         let d = dist.get(t).copied().unwrap_or(f64::INFINITY);
-        if d.is_infinite() {
+        let path = reconstruct_path(pred, source, t);
+        if d.is_infinite() || path.is_none() {
             if json_out {
                 println!(
                     "{{\n  \"source\": \"{}\",\n  \"target\": \"{}\",\n  \"distance\": null,\n  \"path\": []\n}}",
@@ -138,13 +141,17 @@ fn main() {
             } else {
                 println!("no path from {} to {}", source, t);
             }
-        } else if json_out {
-            println!(
-                "{{\n  \"source\": \"{}\",\n  \"target\": \"{}\",\n  \"distance\": {},\n  \"path\": [\"{}\", \"{}\"]\n}}",
-                source, t, format_number(d), source, t
-            );
         } else {
-            println!("{} -> {} (distance: {})", source, t, format_number(d));
+            let path = path.unwrap();
+            if json_out {
+                let path_json: Vec<String> = path.iter().map(|p| format!("\"{}\"", p)).collect();
+                println!(
+                    "{{\n  \"source\": \"{}\",\n  \"target\": \"{}\",\n  \"distance\": {},\n  \"path\": [{}]\n}}",
+                    source, t, format_number(d), path_json.join(", ")
+                );
+            } else {
+                println!("{} (distance: {})", path.join(" -> "), format_number(d));
+            }
         }
     } else if json_out {
         println!("{{");

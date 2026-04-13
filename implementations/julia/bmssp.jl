@@ -5,7 +5,7 @@ using Pkg
 Pkg.activate(joinpath(@__DIR__, "BMSSPAlgorithm"); io=devnull)
 
 using BMSSPAlgorithm
-import BMSSPAlgorithm: Graph, add_edge!, run_sssp, load_graph_from_dot
+import BMSSPAlgorithm: Graph, add_edge!, run_sssp, dijkstra, reconstruct_path, load_graph_from_dot
 using JSON
 
 const VERSION = "0.1.0"
@@ -72,12 +72,13 @@ function main()
         exit(1)
     end
 
-    dist = run_sssp(graph, source)
+    dist, pred = dijkstra(graph, source)
     sorted_nodes = sort(collect(keys(dist)))
 
     if target !== nothing
         d = get(dist, target, Inf)
-        if isinf(d)
+        path = reconstruct_path(pred, source, target)
+        if isinf(d) || path === nothing
             if json_out
                 result = Dict("source" => source, "target" => target,
                               "distance" => nothing, "path" => String[])
@@ -89,10 +90,10 @@ function main()
             if json_out
                 result = Dict("source" => source, "target" => target,
                               "distance" => d == floor(d) ? Int(d) : d,
-                              "path" => [source, target])
+                              "path" => path)
                 println(JSON.json(result, 2))
             else
-                println("$source -> $target (distance: $(format_number(d)))")
+                println("$(join(path, " -> ")) (distance: $(format_number(d)))")
             end
         end
     elseif json_out

@@ -33,7 +33,7 @@ testDijkstraBasic = do
             , ("a", "c", 5)
             , ("b", "c", 1)
             ]
-      d = BMSSP.dijkstra g "s"
+      d = BMSSP.drDist (BMSSP.dijkstra g "s")
   return $ Map.lookup "s" d == Just 0
         && Map.lookup "a" d == Just 1
         && Map.lookup "b" d == Just 3
@@ -43,7 +43,7 @@ testZeroWeights :: IO Bool
 testZeroWeights = do
   let g = foldr (\(u, v, w) acc -> BMSSP.addEdge u v w acc) BMSSP.emptyGraph
             [("s", "a", 0), ("a", "b", 0)]
-      d = BMSSP.dijkstra g "s"
+      d = BMSSP.drDist (BMSSP.dijkstra g "s")
   return $ Map.lookup "s" d == Just 0
         && Map.lookup "a" d == Just 0
         && Map.lookup "b" d == Just 0
@@ -52,7 +52,7 @@ testLinearPath :: IO Bool
 testLinearPath = do
   let g = foldr (\(u, v, w) acc -> BMSSP.addEdge u v w acc) BMSSP.emptyGraph
             [("a", "b", 1), ("b", "c", 2), ("c", "d", 3)]
-      d = BMSSP.dijkstra g "a"
+      d = BMSSP.drDist (BMSSP.dijkstra g "a")
   return $ Map.lookup "a" d == Just 0
         && Map.lookup "b" d == Just 1
         && Map.lookup "c" d == Just 3
@@ -63,7 +63,7 @@ testDisconnected = do
   -- s -> a, b -> c (b and c unreachable from s)
   let g = foldr (\(u, v, w) acc -> BMSSP.addEdge u v w acc) BMSSP.emptyGraph
             [("s", "a", 1), ("b", "c", 2)]
-      d = BMSSP.dijkstra g "s"
+      d = BMSSP.drDist (BMSSP.dijkstra g "s")
   return $ Map.lookup "s" d == Just 0
         && Map.lookup "a" d == Just 1
         && case Map.lookup "b" d of

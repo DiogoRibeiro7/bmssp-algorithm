@@ -409,4 +409,66 @@ function load_graph_from_dot(filename::String)
     return g
 end
 
+"""
+    dijkstra(graph, source) -> (dist, pred)
+
+Standard Dijkstra with predecessor tracking. Returns a distance dict and a
+predecessor dict for path reconstruction.
+"""
+function dijkstra(graph::Graph, source)
+    dist = Dict{Any, Float64}()
+    pred = Dict{Any, Any}()
+    for v in keys(graph.adj)
+        dist[v] = Inf
+    end
+    dist[source] = 0.0
+    pred[source] = source
+
+    visited = Set{Any}()
+    # Use a simple sorted heap of (distance, node) tuples
+    heap = Tuple{Float64, Any}[(0.0, source)]
+
+    while !isempty(heap)
+        sort!(heap)
+        du, u = popfirst!(heap)
+        if u in visited
+            continue
+        end
+        push!(visited, u)
+        for (v, w) in neighbors(graph, u)
+            alt = du + w
+            if alt < get(dist, v, Inf)
+                dist[v] = alt
+                pred[v] = u
+                push!(heap, (alt, v))
+            end
+        end
+    end
+    return dist, pred
+end
+
+"""
+    reconstruct_path(pred, source, target) -> Vector{Any} or nothing
+
+Reconstruct the shortest path from source to target using the predecessor map.
+"""
+function reconstruct_path(pred::Dict, source, target)
+    if !haskey(pred, target)
+        return nothing
+    end
+    path = Any[]
+    current = target
+    while current != source
+        push!(path, current)
+        next = get(pred, current, nothing)
+        if next === nothing || next == current
+            return nothing
+        end
+        current = next
+    end
+    push!(path, source)
+    reverse!(path)
+    return path
+end
+
 end # module BMSSPAlgorithm

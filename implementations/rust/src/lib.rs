@@ -357,11 +357,19 @@ pub fn bmssp(
     BMSSPResult { b: b_prime, u }
 }
 
-/// Standard Dijkstra (used by the CLI for accurate distances).
-pub fn dijkstra(g: &Graph, source: &str) -> HashMap<String, f64> {
+/// Result of Dijkstra: distances and predecessor map.
+pub struct DijkstraResult {
+    pub dist: HashMap<String, f64>,
+    pub pred: HashMap<String, String>,
+}
+
+/// Standard Dijkstra (used by the CLI for accurate distances), tracking predecessors.
+pub fn dijkstra(g: &Graph, source: &str) -> DijkstraResult {
     let mut dist: HashMap<String, f64> =
         g.nodes().into_iter().map(|v| (v, f64::INFINITY)).collect();
+    let mut pred: HashMap<String, String> = HashMap::new();
     dist.insert(source.to_string(), 0.0);
+    pred.insert(source.to_string(), source.to_string());
     let mut visited: HashSet<String> = HashSet::new();
     let mut heap: BinaryHeap<NodeDist> = BinaryHeap::new();
     heap.push(NodeDist {
@@ -378,6 +386,7 @@ pub fn dijkstra(g: &Graph, source: &str) -> HashMap<String, f64> {
             let cur = dist.get(&e.to).copied().unwrap_or(f64::INFINITY);
             if alt < cur {
                 dist.insert(e.to.clone(), alt);
+                pred.insert(e.to.clone(), u.clone());
                 heap.push(NodeDist {
                     node: e.to.clone(),
                     dist: alt,
@@ -385,7 +394,27 @@ pub fn dijkstra(g: &Graph, source: &str) -> HashMap<String, f64> {
             }
         }
     }
-    dist
+    DijkstraResult { dist, pred }
+}
+
+/// Reconstruct the shortest path from source to target using the predecessor map.
+/// Returns None if target is unreachable.
+pub fn reconstruct_path(pred: &HashMap<String, String>, source: &str, target: &str) -> Option<Vec<String>> {
+    if !pred.contains_key(target) {
+        return None;
+    }
+    let mut path = Vec::new();
+    let mut current = target.to_string();
+    while current != source {
+        path.push(current.clone());
+        match pred.get(&current) {
+            Some(p) if p != &current => current = p.clone(),
+            _ => return None,
+        }
+    }
+    path.push(source.to_string());
+    path.reverse();
+    Some(path)
 }
 
 pub fn run_sssp(g: &Graph, source: &str, verbose: bool) -> HashMap<String, f64> {

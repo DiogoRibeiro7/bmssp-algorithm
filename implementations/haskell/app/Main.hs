@@ -88,11 +88,11 @@ run opts dotFile source mTarget = do
             hPutStrLn stderr ("bmssp: target vertex '" ++ t ++ "' not found in graph")
             exitFailure
           _ -> do
-            let dist = BMSSP.dijkstra graph source
-            emit opts source mTarget dist
+            let dr = BMSSP.dijkstra graph source
+            emit opts source mTarget (BMSSP.drDist dr) (BMSSP.drPred dr)
 
-emit :: Options -> String -> Maybe String -> Map.Map String Double -> IO ()
-emit opts source Nothing dist = do
+emit :: Options -> String -> Maybe String -> Map.Map String Double -> Map.Map String String -> IO ()
+emit opts source Nothing dist _ = do
   let sortedNames = sort (Map.keys dist)
   if optJson opts
     then do
@@ -110,9 +110,10 @@ emit opts source Nothing dist = do
       putStrLn "  }"
       putStrLn "}"
     else mapM_ (\n -> putStrLn (n ++ "\t" ++ formatNumber (Map.findWithDefault (1/0) n dist))) sortedNames
-emit opts source (Just target) dist = do
+emit opts source (Just target) dist prd = do
   let d = Map.findWithDefault (1/0) target dist
-  if isInfinite d
+      mPath = BMSSP.reconstructPath prd source target
+  if isInfinite d || mPath == Nothing
     then if optJson opts
       then do
         putStrLn "{"
@@ -122,12 +123,15 @@ emit opts source (Just target) dist = do
         putStrLn "  \"path\": []"
         putStrLn "}"
       else putStrLn ("no path from " ++ source ++ " to " ++ target)
-    else if optJson opts
-      then do
-        putStrLn "{"
-        putStrLn ("  \"source\": \"" ++ source ++ "\",")
-        putStrLn ("  \"target\": \"" ++ target ++ "\",")
-        putStrLn ("  \"distance\": " ++ formatNumber d ++ ",")
-        putStrLn ("  \"path\": [\"" ++ source ++ "\", \"" ++ target ++ "\"]")
-        putStrLn "}"
-      else putStrLn (source ++ " -> " ++ target ++ " (distance: " ++ formatNumber d ++ ")")
+    else case mPath of
+      Just path -> if optJson opts
+        then do
+          let pathJson = "[" ++ concatMap (\(i, n) -> (if i > 0 then ", " else "") ++ "\"" ++ n ++ "\"") (zip [0::Int ..] path) ++ "]"
+          putStrLn "{"
+          putStrLn ("  \"source\": \"" ++ source ++ "\",")
+          putStrLn ("  \"target\": \"" ++ target ++ "\",")
+          putStrLn ("  \"distance\": " ++ formatNumber d ++ ",")
+          putStrLn ("  \"path\": " ++ pathJson)
+          putStrLn "}"
+        else putStrLn (concatMap (\(i, n) -> (if i > 0 then " -> " else "") ++ n) (zip [0::Int ..] path) ++ " (distance: " ++ formatNumber d ++ ")")
+      Nothing -> putStrLn ("no path from " ++ source ++ " to " ++ target)

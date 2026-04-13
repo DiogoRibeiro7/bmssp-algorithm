@@ -128,10 +128,11 @@ contains
     q%size = q%size - 1
   end subroutine dq_pull
 
-  subroutine dijkstra(g, source, dist)
+  subroutine dijkstra(g, source, dist, pred)
     type(Graph), intent(in) :: g
     integer, intent(in) :: source
     real, intent(out) :: dist(:)
+    integer, intent(out) :: pred(:)
     type(DQueue) :: q
     real :: Bi
     integer :: S_nodes(MAX_NODES)
@@ -142,7 +143,9 @@ contains
 
     n = g%n
     dist(1:n) = huge(0.0)
+    pred(1:n) = -1
     dist(source) = 0.0
+    pred(source) = source
 
     call dq_init(q, n, huge(0.0))
     call dq_insert(q, source, 0.0)
@@ -156,6 +159,7 @@ contains
           alt = dist(u) + w
           if (alt < dist(g%edges(u, v)%to)) then
             dist(g%edges(u, v)%to) = alt
+            pred(g%edges(u, v)%to) = u
             call dq_insert(q, g%edges(u, v)%to, alt)
           end if
         end do
@@ -170,20 +174,20 @@ contains
     integer, intent(in) :: S(:)
     integer, intent(in) :: S_count
     real, intent(out) :: d_hat(:)
+    integer :: dummy_pred(MAX_NODES)
     if (l <= 0) then
-      if (S_count > 0) call dijkstra(g, S(1), d_hat)
+      if (S_count > 0) call dijkstra(g, S(1), d_hat, dummy_pred)
     else
       call bmssp(g, l - 1, B, S, S_count, d_hat)
     end if
   end subroutine bmssp
 
-  subroutine run_sssp(g, source, dist)
+  subroutine run_sssp(g, source, dist, pred)
     type(Graph), intent(in) :: g
     integer, intent(in) :: source
     real, intent(out) :: dist(:)
-    integer :: S(1)
-    S(1) = source
-    call bmssp(g, 1, huge(0.0), S, 1, dist)
+    integer, intent(out) :: pred(:)
+    call dijkstra(g, source, dist, pred)
   end subroutine run_sssp
 
   ! -------- Name index for string<->integer mapping --------
@@ -333,11 +337,13 @@ program main
   character(len=MAX_NAME_LEN) :: names(MAX_NODES)
   type(Graph) :: g
   real :: dist(MAX_NODES)
+  integer :: pred(MAX_NODES)
   integer :: name_count, ierr, source_idx, target_idx
   integer :: i, nargs, iarg
   logical :: verbose, json_out, has_target
   character(len=MAX_NAME_LEN) :: sorted_names(MAX_NODES)
   integer :: sorted_idx(MAX_NODES)
+  integer :: path(MAX_NODES), path_len, current
 
   verbose = .false.
   json_out = .false.
@@ -415,7 +421,7 @@ program main
     end if
   end if
 
-  call run_sssp(g, source_idx, dist)
+  call run_sssp(g, source_idx, dist, pred)
 
   ! Sort names alphabetically for output
   do i = 1, name_count
@@ -425,7 +431,7 @@ program main
   call sort_names(sorted_names, sorted_idx, name_count)
 
   if (has_target) then
-    if (dist(target_idx) > huge(0.0)/2) then
+    if (dist(target_idx) > huge(0.0)/2 .or. pred(target_idx) == -1) then
       if (json_out) then
         print '(A)', '{'
         print '(A,A,A)', '  "source": "', trim(source_name), '",'
@@ -437,16 +443,36 @@ program main
         print '(A,A,A,A)', 'no path from ', trim(source_name), ' to ', trim(target_name)
       end if
     else
+      ! Reconstruct path by backtracking through pred
+      path_len = 0
+      current = target_idx
+      do while (current /= source_idx .and. path_len < name_count)
+        path_len = path_len + 1
+        path(path_len) = current
+        current = pred(current)
+        if (current == -1) exit
+      end do
+      path_len = path_len + 1
+      path(path_len) = source_idx
+
       if (json_out) then
         print '(A)', '{'
         print '(A,A,A)', '  "source": "', trim(source_name), '",'
         print '(A,A,A)', '  "target": "', trim(target_name), '",'
         print '(A,I0,A)', '  "distance": ', nint(dist(target_idx)), ','
-        print '(A,A,A,A,A)', '  "path": ["', trim(source_name), '", "', trim(target_name), '"]'
+        write(*, '(A)', advance='no') '  "path": ['
+        do i = path_len, 1, -1
+          write(*, '(A,A,A)', advance='no') '"', trim(names(path(i))), '"'
+          if (i > 1) write(*, '(A)', advance='no') ', '
+        end do
+        print '(A)', ']'
         print '(A)', '}'
       else
-        print '(A,A,A,A,I0,A)', trim(source_name), ' -> ', trim(target_name), &
-              ' (distance: ', nint(dist(target_idx)), ')'
+        do i = path_len, 1, -1
+          write(*, '(A)', advance='no') trim(names(path(i)))
+          if (i > 1) write(*, '(A)', advance='no') ' -> '
+        end do
+        print '(A,I0,A)', ' (distance: ', nint(dist(target_idx)), ')'
       end if
     end if
   else if (json_out) then
