@@ -135,7 +135,7 @@ jobs:
         working-directory: implementations/julia
     steps:
       - uses: actions/checkout@v4
-      - uses: julia-actions/setup-julia@v2
+      - uses: julia-actions/setup-julia@v3
         with:
           version: "1.9"
       - uses: julia-actions/cache@v2
@@ -167,7 +167,7 @@ jobs:
           java-version: "17"
       - name: Install gfortran
         run: sudo apt-get update && sudo apt-get install -y gfortran
-      - uses: julia-actions/setup-julia@v2
+      - uses: julia-actions/setup-julia@v3
         with:
           version: "1.9"
       - name: Install Julia dependencies
