@@ -95,7 +95,7 @@ jobs:
         working-directory: implementations/java
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -161,7 +161,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: implementations/rust
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
