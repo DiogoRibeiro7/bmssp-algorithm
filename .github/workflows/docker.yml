@@ -32,7 +32,7 @@ jobs:
       matrix:
         language: [go, c, rust, java, fortran, julia]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v3
       - name: Build image
         uses: docker/build-push-action@v6
