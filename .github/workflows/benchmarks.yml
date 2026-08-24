@@ -27,7 +27,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.21"
 
@@ -61,7 +61,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.21"
 
